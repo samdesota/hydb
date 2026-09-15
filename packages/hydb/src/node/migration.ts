@@ -643,8 +643,22 @@ export function buildMigrationPlan(
   const nodes = deriveMigrationFingerprints(schema, migrations);
   let description = nodes[0]!.description;
   const steps: PlannedStep[] = [];
-  for (const migration of migrations) {
-    for (const step of migration.steps) {
+  for (
+    let migrationIndex = 0;
+    migrationIndex < migrations.length;
+    migrationIndex += 1
+  ) {
+    const migration = migrations[migrationIndex]!;
+    let lastSchemaStep = -1;
+    for (let index = 0; index < migration.steps.length; index += 1) {
+      if (!isDataStep(migration.steps[index]!)) lastSchemaStep = index;
+    }
+    for (
+      let stepIndex = 0;
+      stepIndex < migration.steps.length;
+      stepIndex += 1
+    ) {
+      const step = migration.steps[stepIndex]!;
       if (isDataStep(step)) {
         steps.push({
           kind: "data",
@@ -653,7 +667,16 @@ export function buildMigrationPlan(
         });
         continue;
       }
-      const next = applySchemaChanges(description, [step]);
+      // Reconcile at each migration boundary with the description derived
+      // from the current schema. Applying add-column operations one at a time
+      // appends them, but the actual schema may declare those columns before
+      // older trailing columns. Column declaration order is fingerprinted, so
+      // the boundary must use the canonical historical description produced
+      // by the generator rather than that incidental append order.
+      const next =
+        stepIndex === lastSchemaStep
+          ? nodes[migrationIndex + 1]!.description
+          : applySchemaChanges(description, [step]);
       steps.push({
         kind: "schema",
         op: step,

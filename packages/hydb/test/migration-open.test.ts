@@ -308,3 +308,49 @@ test("migration list resumes a legacy-group storage through a stale progress mar
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("migration list resumes from a generated boundary when columns precede an existing tail", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "hydb-migration-column-order-"),
+  );
+  const middle = hydb.table("ordered_rows", {
+    id: id().primaryKey(),
+    title: text().notNull(),
+    archivedAt: timestamp(),
+    updatedAt: timestamp().notNull(),
+  });
+  const after = hydb.table("ordered_rows", {
+    id: id().primaryKey(),
+    title: text().notNull(),
+    archivedAt: timestamp(),
+    detail: text(),
+    updatedAt: timestamp().notNull(),
+  });
+  try {
+    let storage = await openNodeStorage({
+      directory,
+      schema: hydb.schema({ rows: middle }),
+    });
+    await storage.close();
+    storage = await openNodeStorage({
+      directory,
+      schema: hydb.schema({ rows: after }),
+      migrations: [
+        defineMigration({
+          id: "0001-archived-at",
+          steps: [ddl.addColumn("ordered_rows", "archivedAt", timestamp())],
+        }),
+        defineMigration({
+          id: "0002-detail",
+          steps: [ddl.addColumn("ordered_rows", "detail", text())],
+        }),
+      ],
+    });
+    const snapshot = await storage.snapshot();
+    assert.equal(snapshot.sequence, 1);
+    await snapshot.close();
+    await storage.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
