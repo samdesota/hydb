@@ -7,6 +7,8 @@ A TypeScript monorepo containing:
 
 Package names remain `@hyos/hydb` and `@hyos/hyapp` so existing imports keep working.
 
+See [Architecture](architecture.md) for a diagrammed overview of the core components, query and command flows, and storage engines.
+
 ## Development
 
 Use Node.js 24 and npm. From the repository root:
@@ -18,7 +20,7 @@ npm run typecheck
 npm test
 ```
 
-Run `npm run sandbox` to generate the HyDB query planner sandbox. See [HyApp usage](packages/hyapp/README.md), [HyDB API](packages/hydb/docs/api-spec.md), and [storage benchmarks](packages/hydb/benchmarks/README.md).
+Run `npm run sandbox` to generate the HyDB query planner sandbox. See [HyApp usage](packages/hyapp/README.md) and [storage benchmarks](packages/hydb/benchmarks/README.md).
 
 ## History
 
