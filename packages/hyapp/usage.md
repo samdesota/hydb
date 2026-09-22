@@ -1,5 +1,7 @@
 # HyApp usage guide
 
+For the complete framework API and adoption checklist, see the [HyDB and HyApp usage reference](../../usage.md).
+
 HyApp is the application layer on top of HyDB. HyDB owns schemas, queries,
 transactions, policies, and storage. HyApp adds commands, principal-bound
 gateways, typed clients, HTTP transport, command compilation, and optional UI

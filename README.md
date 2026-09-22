@@ -27,6 +27,8 @@ A TypeScript monorepo containing:
 
 Package names remain `@hyos/hydb` and `@hyos/hyapp` so existing imports keep working.
 
+For agent-guided adoption and the full public API, see the [Usage reference](usage.md).
+
 See [Architecture](architecture.md) for a diagrammed overview of the core components, query and command flows, and storage engines.
 
 ## Getting started
@@ -34,7 +36,8 @@ See [Architecture](architecture.md) for a diagrammed overview of the core compon
 Build a browser task list backed by LMDB. The frontend uses typed queries and
 commands through a HyApp client; the server owns persistence and authorization.
 Creating or completing a task updates every open tab through a live subscription.
-This example uses plain TypeScript and DOM APIs so no UI framework is required.
+The frontend example uses SolidJS to keep live query state and command dispatch
+concise.
 
 ```text
 Browser UI → HyApp client → HTTP gateway → HyDB → LMDB
@@ -54,8 +57,9 @@ npm run build
 mkdir getting-started
 ```
 
-Create the six files below inside `getting-started/`. Each code block is a
-complete file; the final step builds the client and server and starts the app.
+The snippets below show the data layer and a SolidJS component. Place the shared
+modules in `getting-started/` and use the component in your Solid app. Normal app
+scaffolding, routing, and error displays are omitted to keep the flow clear.
 
 ### 2. Share the schema and queries
 
@@ -172,8 +176,8 @@ export const registry = hyapp.commandRegistry({ createTask, completeTask });
 
 `openKeyValueStorage({ directory, schema })` selects LMDB and reopens the same
 stored data on later runs. The HTTP handler exposes the registered queries,
-subscriptions, and commands. Serving the page and gateway together keeps browser
-requests on the same origin.
+subscriptions, and commands. Mount it in your Node server and serve or proxy
+`/api/hyapp` on the same origin as your Solid app.
 
 This localhost demo assigns Alice to every request. In your application, replace
 the `principal` callback with a lookup that verifies your session cookie or token
@@ -182,7 +186,6 @@ and returns the authenticated user; the browser does not choose its own principa
 ```ts
 // getting-started/server.ts
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
 import { hydb } from "@hyos/hydb";
 import { openKeyValueStorage } from "@hyos/hydb/node";
 import { hyapp } from "@hyos/hyapp";
@@ -204,26 +207,11 @@ const handleGateway = createNodeGatewayHttpHandler({
   principal: () => ({ userId: "alice" }),
 });
 
-const clientScript = await readFile(new URL("./client.js", import.meta.url));
-const html = `<!doctype html>
-<html lang="en"><meta charset="utf-8"><title>HyDB tasks</title>
-<body><h1>My tasks</h1>
-<form id="add-task"><input id="title" aria-label="Task title" required maxlength="200">
-<button id="add">Add task</button></form>
-<p id="status" role="status">Loading tasks…</p><ul id="tasks"></ul>
-<script type="module" src="/client.js"></script></body></html>`;
-
 const server = createServer(async (request, response) => {
   if (await handleGateway(request, response)) return;
-  if (request.url === "/client.js") {
-    response.writeHead(200, { "content-type": "text/javascript" }).end(clientScript);
-  } else if (request.url === "/") {
-    response.writeHead(200, { "content-type": "text/html; charset=utf-8" }).end(html);
-  } else {
-    response.writeHead(404).end();
-  }
+  response.writeHead(404).end();
 });
-server.listen(3000, "127.0.0.1", () => console.log("Open http://127.0.0.1:3000"));
+server.listen(3001, "127.0.0.1");
 
 async function shutdown() {
   const closed = new Promise<void>((resolve) => server.close(() => resolve()));
@@ -235,128 +223,84 @@ process.once("SIGINT", () => void shutdown());
 process.once("SIGTERM", () => void shutdown());
 ```
 
-### 6. Read and write from the frontend
+### 6. Use the database from SolidJS
 
-`gatewayClient` provides the frontend API. `client.subscribe(taskList, ...)`
-delivers the initial rows and live updates. `client.dispatch(...)` sends typed
-commands to the gateway. The UI renders the subscription results, so it updates
-when another tab changes the database too.
+`createGatewayQuery` gives the component live data, loading state, and automatic
+subscription cleanup. `createCommandDispatcher` sends typed commands and tracks
+pending state. The component updates when a command changes the database,
+including changes made in another tab.
 
-```ts
-// getting-started/client.ts
+```tsx
+// getting-started/Tasks.tsx
+import { createSignal, For, Show } from "solid-js";
 import { hyapp } from "@hyos/hyapp";
 import { httpGatewayTransport } from "@hyos/hyapp/http";
+import { createCommandDispatcher, createGatewayQuery } from "@hyos/hyapp/solid";
 import { reads, taskList } from "./model.js";
 import { registry } from "./commands.js";
 
-// The client build transforms registry into client command definitions.
 const client = hyapp.gatewayClient({
   registry,
-  transport: httpGatewayTransport({ reads, baseUrl: "/api/hyapp" }),
+  transport: httpGatewayTransport({ reads }),
 });
 
-const form = document.querySelector<HTMLFormElement>("#add-task")!;
-const title = document.querySelector<HTMLInputElement>("#title")!;
-const add = document.querySelector<HTMLButtonElement>("#add")!;
-const list = document.querySelector<HTMLUListElement>("#tasks")!;
-const status = document.querySelector<HTMLParagraphElement>("#status")!;
-const showError = (error: unknown) => {
-  status.textContent = error instanceof Error ? error.message : String(error);
-};
+export default function Tasks() {
+  const tasks = createGatewayQuery(client, taskList);
+  const dispatch = createCommandDispatcher(client);
+  const [title, setTitle] = createSignal("");
 
-// subscribe delivers both the initial result and future committed changes.
-const unsubscribe = client.subscribe(taskList, (rows) => {
-  status.textContent = rows.length === 0 ? "No tasks yet." : "";
-  list.replaceChildren(...rows.map((task) => {
-    const item = document.createElement("li");
-    const button = document.createElement("button");
-    button.textContent = task.done ? `${task.title} — done` : task.title;
-    button.disabled = task.done;
-    button.onclick = async () => {
-      button.disabled = true;
-      try {
-        await client.dispatch("completeTask", { id: task.id });
-      } catch (error) {
-        showError(error);
-        button.disabled = false;
-      }
-    };
-    item.append(button);
-    return item;
-  }));
-}, showError);
-
-form.onsubmit = async (event) => {
-  event.preventDefault();
-  add.disabled = true;
-  try {
-    await client.dispatch("createTask", { title: title.value });
-    title.value = "";
-  } catch (error) {
-    showError(error);
-  } finally {
-    add.disabled = false;
+  async function addTask() {
+    await dispatch("createTask", { title: title() });
+    setTitle("");
   }
-};
-window.addEventListener("pagehide", () => unsubscribe(), { once: true });
+
+  return (
+    <section>
+      <input
+        placeholder="New task"
+        value={title()}
+        onInput={(event) => setTitle(event.currentTarget.value)}
+      />
+      <button disabled={!title().trim() || dispatch.isPending("createTask")} onClick={addTask}>
+        Add task
+      </button>
+
+      <Show when={!tasks.loading()} fallback={<p>Loading tasks…</p>}>
+        <For each={tasks.data()}>
+          {(task) => (
+            <button
+              disabled={task.done || dispatch.isPending("completeTask")}
+              onClick={() => dispatch("completeTask", { id: task.id })}
+            >
+              {task.title}{task.done ? " — done" : ""}
+            </button>
+          )}
+        </For>
+      </Show>
+    </section>
+  );
+}
 ```
 
-For a one-time read, use `await client.fetch(taskList)`. In a component-based UI,
-call the subscription's disposer when the component unmounts. For SolidJS,
-[`createGatewayQuery` and `createCommandDispatcher`](packages/hyapp/README.md#solidjs-helpers)
-provide query state, cleanup, and reactive pending state.
+Mount `<Tasks />` in your Solid app. There is no manual fetch-and-refresh loop:
+`tasks.data()` stays current through the live subscription. Use `tasks.error()`
+and handle rejected dispatches in your app's error UI.
 
 This example displays committed updates. Optimistic local changes require an
 `OptimisticCoordinator`; the HTTP client does not automatically create a local
 replica.
 
-### 7. Build and run both sides
+### 7. Connect the builds
 
-The command plugin produces separate client and server command definitions.
-The browser gets contracts and any optimistic handlers; server handlers and
-policy dependencies stay in the server build. The `define` setting disables the
-database's Node-oriented trace flag in the browser bundle.
+Use your Solid app's normal JSX build. Run HyApp's command transform with
+`target: "client"` **before** the Solid transform so the imported registry contains
+client contracts, with server handlers and policy dependencies removed. Compile
+server commands with `target: "server"`. The [build integration guide](packages/hyapp/usage.md#7-compile-shared-commands-for-client-and-server)
+shows the esbuild plugin and the transform hook for tools such as Vite.
 
-```js
-// getting-started/build.mjs
-import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
-import { hyappCommandsPlugin } from "@hyos/hyapp/esbuild";
-
-const shared = {
-  absWorkingDir: fileURLToPath(new URL(".", import.meta.url)),
-  bundle: true,
-  format: "esm",
-};
-await build({
-  ...shared,
-  entryPoints: ["server.ts"],
-  platform: "node",
-  packages: "external",
-  plugins: [hyappCommandsPlugin({ target: "server" })],
-  outfile: "dist/server.mjs",
-});
-await build({
-  ...shared,
-  entryPoints: ["client.ts"],
-  platform: "browser",
-  plugins: [hyappCommandsPlugin({ target: "client" })],
-  define: { "process.env.HYOS_BOOT_TRACE": '"0"' },
-  outfile: "dist/client.js",
-});
-```
-
-Run these commands from the repository root:
-
-```sh
-node getting-started/build.mjs
-node getting-started/dist/server.mjs
-```
-
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000), add a task, and click it to mark
-it done. Open a second tab to see live updates. Restart the server and reload to
-see that tasks persist in `./.data/getting-started`. Stop the server with Ctrl+C
-so subscriptions and storage are closed.
+In a Vite development setup, proxy `/api` to `http://127.0.0.1:3001`. Also set
+`define: { "process.env.HYOS_BOOT_TRACE": '"0"' }` in the browser build to disable
+Node-oriented trace logging. Keep LMDB and `server.ts` in the backend build.
 
 For isolated tests, the same key-value engine accepts `store: memoryKeyValueStore()`
 instead of `directory`; import the adapter from `@hyos/hydb/node`. The LMDB engine
@@ -370,8 +314,7 @@ After building this checkout, install both local packages in your project,
 replacing `/absolute/path/to/hydb` with the checkout path:
 
 ```sh
-npm install --save-exact /absolute/path/to/hydb/packages/hydb /absolute/path/to/hydb/packages/hyapp zod@4.4.3
-npm install --save-dev esbuild@0.28.2
+npm install --save-exact /absolute/path/to/hydb/packages/hydb /absolute/path/to/hydb/packages/hyapp zod@4.4.3 solid-js@1.9.15
 ```
 
 Keep Zod aligned with the checkout so schema types match across packages. Keep the
