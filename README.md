@@ -358,7 +358,8 @@ Versions are managed automatically; never edit package versions by hand.
 1. Commit to `main` using [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `perf`, etc.). A `feat(hydb): ...` commit bumps `@438d/hydb`'s minor version; a `fix` bumps the patch.
 2. The [release workflow](.github/workflows/release.yml) (release-please) maintains a release PR that bumps the workspace versions and updates the `CHANGELOG.md` per package.
 3. Merging the release PR tags (`hydb-v1.2.0`, `hyapp-v1.2.0`) and creates GitHub Releases.
-4. The [publish workflow](.github/workflows/publish.yml) runs on each release: it builds and tests the monorepo, then publishes the released package to npm using [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC; configured per package on npmjs.com — no token secret required; packages use `publishConfig.access: public`).
+4. The same [release workflow](.github/workflows/release.yml) then builds and tests the monorepo and publishes the released packages to npm using [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC; configured per package on npmjs.com with workflow filename `release.yml` — no token secret required; packages use `publishConfig.access: public`). Publishing happens inside the release workflow because Releases are created with `GITHUB_TOKEN`, whose events don't trigger separate workflows. A package can also be published manually via the workflow's "Run workflow" dispatch input.
+
 
 ## History
 

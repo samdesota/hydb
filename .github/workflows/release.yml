@@ -3,16 +3,78 @@ name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Package to publish (hydb or hyapp)
+        required: true
+        type: choice
+        options:
+          - hydb
+          - hyapp
 
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   release-please:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+      paths_released: ${{ steps.release.outputs.paths_released }}
     steps:
       - name: Run release-please
+        id: release
         uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publish directly in this workflow: release-please creates GitHub Releases
+  # with GITHUB_TOKEN, and events from GITHUB_TOKEN do not trigger other
+  # workflows, so a separate `on: release` publish workflow never runs.
+  publish:
+    needs: release-please
+    if: >-
+      (github.event_name == 'push' && needs.release-please.outputs.releases_created == 'true') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Remove empty auth token from npmrc
+        run: |
+          sed -i.bak '/^\/\/registry.npmjs.org\/:_authToken=/d' ~/.npmrc && rm ~/.npmrc.bak
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and test
+        run: npm run build && npm test
+
+      - name: Publish @438d/hydb
+        if: >-
+          github.event_name == 'workflow_dispatch' && inputs.package == 'hydb' ||
+          contains(fromJSON(needs.release-please.outputs.paths_released || '[]'), 'packages/hydb')
+        run: npm publish
+        working-directory: packages/hydb
+
+      - name: Publish @438d/hyapp
+        if: >-
+          github.event_name == 'workflow_dispatch' && inputs.package == 'hyapp' ||
+          contains(fromJSON(needs.release-please.outputs.paths_released || '[]'), 'packages/hyapp')
+        run: npm publish
+        working-directory: packages/hyapp
