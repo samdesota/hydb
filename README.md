@@ -355,7 +355,7 @@ Run `npm run sandbox` to generate the HyDB query planner sandbox. See [HyApp usa
 
 Versions are managed automatically; never edit package versions by hand.
 
-1. Commit to `main` using [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `perf`, etc.). A `feat(hydb): ...` commit bumps `@hyos/hydb`'s minor version; a `fix` bumps the patch.
+1. Commit to `main` using [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `perf`, etc.). A `feat(hydb): ...` commit bumps `@438d/hydb`'s minor version; a `fix` bumps the patch.
 2. The [release workflow](.github/workflows/release.yml) (release-please) maintains a release PR that bumps the workspace versions and updates the `CHANGELOG.md` per package.
 3. Merging the release PR tags (`hydb-v1.2.0`, `hyapp-v1.2.0`) and creates GitHub Releases.
 4. The [publish workflow](.github/workflows/publish.yml) runs on each release: it builds and tests the monorepo, then publishes the released package to npm (`NPM_TOKEN` repository secret required; packages use `publishConfig.access: public`).

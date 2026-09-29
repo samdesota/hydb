@@ -23,3 +23,10 @@ under the `@438d` npm organization. Use Node.js 24.11 or newer.
 Each package's `prepack` script builds its output. `publishConfig` selects the
 public npm registry and public access. npm versions cannot be overwritten;
 increment the version for each subsequent release.
+
+For routine releases, use the automated flow instead: the
+[release workflow](../.github/workflows/release.yml) (release-please) maintains a
+version PR from Conventional Commits, and the
+[publish workflow](../.github/workflows/publish.yml) publishes the released
+package when its GitHub release is tagged. See the
+[Releasing section](../README.md#releasing) of the README.

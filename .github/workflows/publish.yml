@@ -29,7 +29,7 @@ jobs:
       - name: Build and test
         run: npm run build && npm test
 
-      - name: Publish @hyos/hydb
+      - name: Publish @438d/hydb
         run: npm publish
         working-directory: packages/hydb
         env:
@@ -55,7 +55,7 @@ jobs:
       - name: Build and test
         run: npm run build && npm test
 
-      - name: Publish @hyos/hyapp
+      - name: Publish @438d/hyapp
         run: npm publish
         working-directory: packages/hyapp
         env:

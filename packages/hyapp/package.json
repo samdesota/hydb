@@ -1,14 +1,7 @@
 {
-  "name": "@hyos/hyapp",
-  "version": "0.0.0",
-  "private": false,
-  "publishConfig": {
-    "access": "public"
-  },
-  "files": [
-    "dist",
-    "dist-cjs"
-  ],
+  "name": "@438d/hyapp",
+  "version": "0.1.1",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
@@ -42,30 +35,58 @@
   },
   "scripts": {
     "build": "npm run build:hydb && tsc",
-    "build:hydb": "npm run build --workspace @hyos/hydb",
+    "build:hydb": "npm run build --workspace @438d/hydb",
     "test": "npm run build:hydb && tsc --noEmit && tsc && node --conditions=browser --test dist/test/*.test.js",
-    "typecheck": "npm run build:hydb && tsc --noEmit"
+    "typecheck": "npm run build:hydb && tsc --noEmit",
+    "prepack": "npm run build"
   },
   "dependencies": {
-    "@hyos/hydb": "0.0.0",
-    "zod": "^4.4.3"
+    "@438d/hydb": "^0.1.1",
+    "zod": "^4.4.3",
+    "@babel/generator": "^8.0.0",
+    "@babel/parser": "^8.0.4",
+    "@babel/traverse": "^8.0.4",
+    "@babel/types": "^8.0.4"
   },
   "peerDependencies": {
-    "solid-js": "^1.9.0"
+    "solid-js": "^1.9.0",
+    "esbuild": "^0.28.2"
   },
   "peerDependenciesMeta": {
     "solid-js": {
       "optional": true
+    },
+    "esbuild": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@babel/generator": "^8.0.0",
-    "@babel/parser": "^8.0.4",
-    "@babel/traverse": "^8.0.4",
-    "@babel/types": "^8.0.4",
     "@types/node": "^24.13.3",
     "esbuild": "^0.28.2",
     "solid-js": "^1.9.15",
     "typescript": "^7.0.2"
-  }
+  },
+  "description": "Commands, gateways, HTTP transport, and optional SolidJS bindings for HyDB.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samdesota/hydb.git",
+    "directory": "packages/hyapp"
+  },
+  "homepage": "https://github.com/samdesota/hydb/tree/main/packages/hyapp#readme",
+  "bugs": {
+    "url": "https://github.com/samdesota/hydb/issues"
+  },
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "dist/src",
+    "usage.md",
+    "docs/commands.md",
+    "skills"
+  ]
 }
