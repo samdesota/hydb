@@ -5,5 +5,5 @@
     "packages/hydb": {},
     "packages/hyapp": {}
   },
-  "plugins": ["workspaces"]
+  "plugins": ["node-workspace"]
 }
