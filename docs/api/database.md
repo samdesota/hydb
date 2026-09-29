@@ -73,6 +73,8 @@ a cardinality method to obtain a `Query<Result>` that can be fetched/subscribed 
 | --- | --- |
 | `.where(row => expression)` | Adds a filter. Repeated calls combine filters with AND. |
 | `field.eq(valueOrField)`, `field.ne(valueOrField)` | Equality and inequality; compare with a literal of the field type or another field expression. |
+| `field.gt(v)`, `field.gte(v)`, `field.lt(v)`, `field.lte(v)` | Ordering comparisons against a literal or another field expression. Only equality (`eq`) is used for index/authorization planning; ordering predicates are applied as residual filters. `null` sorts lowest, so `field.lte(v)` matches `null` rows and `field.gt(v)` does not. |
+| `field.in(values)` | Membership against an array of literals (or field expressions); never matches `null`. |
 | `expression.and(other)`, `.or(other)`, `.not()` | Compose boolean expressions. |
 | `.orderBy(row => field.asc())` | Ordering; return an array for multiple keys. A later `orderBy` replaces the previous ordering. |
 | `.limit(count)` | Caps matching rows before final cardinality/projection. Supply a non-negative integer. |
@@ -85,8 +87,8 @@ a cardinality method to obtain a `Query<Result>` that can be fetched/subscribed 
 
 Use `.orderBy(...).limit(1).one()` for a first-or-null result. `.one()` by itself
 is a cardinality assertion, not a first-row shortcut. High-level predicates do
-not currently expose `gt`, `gte`, `lt`, `lte`, `in`, or arbitrary JavaScript
-predicates; range scans exist at the storage layer.
+not currently expose arbitrary JavaScript predicates; range scans exist at the
+storage layer.
 
 Nested queries provide correlated relationships and counts:
 

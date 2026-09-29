@@ -21,7 +21,7 @@ export type LiteralNode = Readonly<{
 
 export type ComparisonNode = Readonly<{
   type: "comparison";
-  operator: "eq" | "ne";
+  operator: "eq" | "ne" | "gt" | "lt" | "gte" | "lte" | "in";
   left: ExpressionNode;
   right: ExpressionNode;
 }>;
@@ -91,6 +91,11 @@ export type FieldExpression<Data> = Expression<Data> &
   Readonly<{
     eq(value: Data | Expression<Data>): BooleanExpression;
     ne(value: Data | Expression<Data>): BooleanExpression;
+    gt(value: Data | Expression<Data>): BooleanExpression;
+    lt(value: Data | Expression<Data>): BooleanExpression;
+    gte(value: Data | Expression<Data>): BooleanExpression;
+    lte(value: Data | Expression<Data>): BooleanExpression;
+    in(values: readonly (Data | Expression<Data>)[]): BooleanExpression;
     asc(): OrderExpression;
     desc(): OrderExpression;
   }>;
@@ -202,6 +207,31 @@ function field<Data>(
     },
     ne(value: Data | Expression<Data>) {
       return compare("ne", value);
+    },
+    gt(value: Data | Expression<Data>) {
+      return compare("gt", value);
+    },
+    lt(value: Data | Expression<Data>) {
+      return compare("lt", value);
+    },
+    gte(value: Data | Expression<Data>) {
+      return compare("gte", value);
+    },
+    lte(value: Data | Expression<Data>) {
+      return compare("lte", value);
+    },
+    in(values: readonly (Data | Expression<Data>)[]) {
+      return booleanExpression(
+        Object.freeze({
+          type: "comparison",
+          operator: "in",
+          left: node,
+          right: Object.freeze({
+            type: "literal",
+            value: Object.freeze([...values]),
+          }),
+        }),
+      );
     },
     asc() {
       return Object.freeze({
@@ -395,11 +425,32 @@ export function evaluateExpressionNode(
     case "literal":
       return node.value;
     case "comparison": {
-      const equal = valuesEqual(
-        evaluateExpressionNode(node.left, context),
-        evaluateExpressionNode(node.right, context),
-      );
-      return node.operator === "eq" ? equal : !equal;
+      const left = evaluateExpressionNode(node.left, context);
+      const right = evaluateExpressionNode(node.right, context);
+      switch (node.operator) {
+        case "eq":
+          return valuesEqual(left, right);
+        case "ne":
+          return !valuesEqual(left, right);
+        case "gt":
+        case "lt":
+        case "gte":
+        case "lte": {
+          const compared = compareQueryValues(left, right);
+          return node.operator === "gt"
+            ? compared > 0
+            : node.operator === "lt"
+              ? compared < 0
+              : node.operator === "gte"
+                ? compared >= 0
+                : compared <= 0;
+        }
+        case "in": {
+          const candidates =
+            Array.isArray(right) ? right : [right];
+          return candidates.some((candidate) => valuesEqual(left, candidate));
+        }
+      }
     }
     case "logical": {
       const left = Boolean(evaluateExpressionNode(node.left, context));
