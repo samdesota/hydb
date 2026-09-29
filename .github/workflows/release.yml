@@ -58,7 +58,8 @@ jobs:
 
       - name: Remove empty auth token from npmrc
         run: |
-          sed -i.bak '/^\/\/registry.npmjs.org\/:_authToken=/d' ~/.npmrc && rm ~/.npmrc.bak
+          f="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          [ -f "$f" ] && sed -i.bak '/^\/\/registry.npmjs.org\/:_authToken=/d' "$f" && rm -f "$f.bak"
 
       - name: Install dependencies
         run: npm ci
