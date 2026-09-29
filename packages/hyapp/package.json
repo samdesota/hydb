@@ -1,6 +1,6 @@
 {
   "name": "@438d/hyapp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -41,7 +41,7 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@438d/hydb": "^0.2.0",
+    "@438d/hydb": "^0.3.0",
     "zod": "^4.4.3",
     "@babel/generator": "^8.0.0",
     "@babel/parser": "^8.0.4",
