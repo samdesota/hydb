@@ -81,7 +81,7 @@ current browser build needs `process.env.HYOS_BOOT_TRACE` replaced with `"0"`.
 | --- | --- |
 | Frontend database and optimistic replication | Hooks and shared mutation logic are provided. The application supplies its local database integration, layer management, reconciliation, retries, and any offline queue. |
 | HTTP exactly-once commands | Invocation IDs are carried, but the built-in adapters do not persist deduplication or automatically retry. A lost response can follow a committed write. |
-| Query language | Equality/inequality, boolean composition, ordering, limits, nested correlated selections, and five cardinalities. No SQL strings or generic `join`, `groupBy`, `sum`, or field range-comparison methods. |
+| Query language | Equality/inequality, ordering comparisons (`gt`/`gte`/`lt`/`lte`), array membership (`in`), boolean composition, ordering, limits, nested correlated selections, and five cardinalities. No SQL strings or generic `join`, `groupBy`, or `sum`. |
 | Relationships | `.references()` records schema relationships. General foreign-key enforcement and cascading deletes are not implemented; enforce required invariants in commands/policies. |
 | Branching | Low-level storage can create/read/write branches. The high-level `Database` uses `main`; it has no branch-selector option or branch merge API. |
 | Key-value schema evolution | Reopening requires the same schema. Declarative migrations belong to the file engine. |
