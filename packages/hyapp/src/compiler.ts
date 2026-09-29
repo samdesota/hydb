@@ -85,7 +85,7 @@ export function compileCommandModule(
       programPath = path;
     },
     ImportDeclaration(path) {
-      if (path.node.source.value !== "@hyos/hyapp") return;
+      if (path.node.source.value !== "@438d/hyapp") return;
       for (const specifier of path.get("specifiers")) {
         if (specifier.isImportNamespaceSpecifier()) {
           factoryObjects.add(specifier.node.local.name);

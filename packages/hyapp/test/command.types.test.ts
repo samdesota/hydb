@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { hydb, id, text } from "@hyos/hydb";
+import { hydb, id, text } from "@438d/hydb";
 import {
   hyapp,
   type InferCommandInput,

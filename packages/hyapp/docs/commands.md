@@ -16,9 +16,9 @@ application concerns that do not belong in a database package:
 
 The package seam will therefore be:
 
-- `@hyos/hydb`: schemas, query planning and execution, transactions, policy
+- `@438d/hydb`: schemas, query planning and execution, transactions, policy
   primitives and enforcement, storage interfaces, and storage adapters.
-- `@hyos/hyapp`: commands, gateways, client/server compilation, command
+- `@438d/hyapp`: commands, gateways, client/server compilation, command
   dispatch, optimistic layers, and transport adapters.
 
 The dependency direction is always `hyapp -> hydb`. Policy definitions remain
@@ -560,7 +560,7 @@ implementation.
 
 The split should happen in dependency order:
 
-1. Establish `@hyos/hyapp` with a one-way dependency on `@hyos/hydb`.
+1. Establish `@438d/hyapp` with a one-way dependency on `@438d/hydb`.
 2. Add the policy-aware transaction interface and condition evaluation to
    hydb.
 3. Implement the explicit client and server command factories in hyapp.

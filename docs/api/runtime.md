@@ -8,13 +8,13 @@ applications only need database/storage options and lifecycle cleanup.
 ## Memory accounting
 
 `new MemoryManager({ maxBytes })` coordinates soft accounting and up-front hard
-reservations. It is exported from `@hyos/hydb`. Pass one instance to storage and
+reservations. It is exported from `@438d/hydb`. Pass one instance to storage and
 the database to account for both retained query state and persistent page cache.
 
 ```ts
 // resources.ts
-import { hydb, MemoryManager, type StorageDatabase } from "@hyos/hydb";
-import { nodeSpillStore, openKeyValueStorage } from "@hyos/hydb/node";
+import { hydb, MemoryManager, type StorageDatabase } from "@438d/hydb";
+import { nodeSpillStore, openKeyValueStorage } from "@438d/hydb/node";
 import { schema } from "./model.js";
 
 export async function openWithBudgets(directory: string, spillDirectory: string) {
@@ -83,7 +83,7 @@ Sources: [memory](../../packages/hydb/src/memory.ts),
 
 ## Immutable trees and page stores
 
-`ImmutableBPlusTree` from `@hyos/hydb/node` is a byte-key/byte-value tree over a
+`ImmutableBPlusTree` from `@438d/hydb/node` is a byte-key/byte-value tree over a
 `TreePageStore`. Construct with `new ImmutableBPlusTree(store, options?)`;
 options are `cacheBytes` (default 16 MiB), `maxEntries` (default 64, minimum 4),
 and `memory`. `TreeRoot` is an opaque `PageId` or `null` for an empty tree.

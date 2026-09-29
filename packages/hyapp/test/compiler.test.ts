@@ -10,7 +10,7 @@ import { hyappCommandsPlugin } from "../src/esbuild.js";
 import { hyapp } from "../src/index.js";
 
 const source = `
-  import { commandFactory } from "@hyos/hyapp";
+  import { commandFactory } from "@438d/hyapp";
   import { principal } from "./principal.js";
   import { policies } from "./policies.js";
   import { serverSecret } from "./server-secret.js";
@@ -74,7 +74,7 @@ test("server compilation retains authoritative behavior and policies", () => {
 test("client compilation supports an optimistic-only void command", () => {
   const compiled = compileCommandModule(
     `
-      import { commandFactory } from "@hyos/hyapp";
+      import { commandFactory } from "@438d/hyapp";
       const commands = commandFactory({ principal, defaultPolicy });
       export const update = commands.define({
         input,
@@ -94,7 +94,7 @@ test("client compilation fails closed on opaque command definitions", () => {
     () =>
       compileCommandModule(
         `
-          import { commandFactory } from "@hyos/hyapp";
+          import { commandFactory } from "@438d/hyapp";
           const commands = commandFactory({ principal, defaultPolicy });
           commands.define({ input, async optimistic() {}, ...implementation });
         `,
@@ -107,7 +107,7 @@ test("client compilation fails closed on opaque command definitions", () => {
     () =>
       compileCommandModule(
         `
-          import { commandFactory } from "@hyos/hyapp";
+          import { commandFactory } from "@438d/hyapp";
           const commands = commandFactory({ principal, defaultPolicy });
           commands.define(definition);
         `,
@@ -131,7 +131,7 @@ test("the esbuild adapter strips server modules before resolution", async () => 
     const result = await build({
       entryPoints: [entry],
       bundle: true,
-      external: ["@hyos/hyapp"],
+      external: ["@438d/hyapp"],
       format: "esm",
       platform: "browser",
       plugins: [hyappCommandsPlugin({ target: "client" })],

@@ -10,7 +10,7 @@ import {
   storageMutation,
   text,
   timestamp,
-} from "@hyos/hydb";
+} from "@438d/hydb";
 
 import {
   createClientCommandFactory,

@@ -8,7 +8,7 @@ Save this shared module as `model.ts` when using the examples in this reference.
 It is safe to share between client and server builds.
 
 ```ts
-import { boolean, hydb, id, index, text, timestamp } from "@hyos/hydb";
+import { boolean, hydb, id, index, text, timestamp } from "@438d/hydb";
 
 export const projects = hydb.table("projects", {
   id: id().primaryKey(),
@@ -91,7 +91,7 @@ predicates; range scans exist at the storage layer.
 Nested queries provide correlated relationships and counts:
 
 ```ts
-import { hydb, type InferQueryResult } from "@hyos/hydb";
+import { hydb, type InferQueryResult } from "@438d/hydb";
 import { projects, tasks } from "./model.js";
 
 export const board = hydb.query(projects).select((project) => ({
@@ -120,7 +120,7 @@ Sources: [query.ts](../../packages/hydb/src/query.ts),
 ## Database lifecycle and operations
 
 ```ts
-import { hydb, memoryStorage } from "@hyos/hydb";
+import { hydb, memoryStorage } from "@438d/hydb";
 import { schema } from "./model.js";
 
 export async function openTestDatabase() {
@@ -207,7 +207,7 @@ Keep existing callers working, but use HyApp for new application composition.
   legacy gateway filters reads but does not make legacy writes principal-aware.
 - Legacy type exports are `Command`, `InferCommandInput`, `InferCommandResult`,
   `Gateway`, `GatewayCommands`, `GatewaySession`, and `InferGatewayCommands`
-  from `@hyos/hydb`. Import HyApp's versions for HyApp objects.
+  from `@438d/hydb`. Import HyApp's versions for HyApp objects.
 
 Sources: [legacy command](../../packages/hydb/src/command.ts),
 [legacy gateway](../../packages/hydb/src/gateway.ts).

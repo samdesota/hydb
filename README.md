@@ -18,6 +18,17 @@ shared command compilation and optimistic lifecycle hooks; the application
 supplies the frontend database integration and coordinator that manages local
 layers, authoritative updates, and reconciliation.
 
+## Install from npm
+
+Use Node.js 24.11 or newer. Both packages are public and MIT licensed:
+
+- [`@438d/hydb`](https://www.npmjs.com/package/@438d/hydb): database, queries, subscriptions, and storage.
+- [`@438d/hyapp`](https://www.npmjs.com/package/@438d/hyapp): commands, gateways, HTTP transport, and optional SolidJS bindings.
+
+```sh
+npm install @438d/hydb @438d/hyapp
+```
+
 ## Repo Structure
 
 A TypeScript monorepo containing:
@@ -25,7 +36,7 @@ A TypeScript monorepo containing:
 - `packages/hydb`: schemas, queries, transactions, live subscriptions, and persistent storage.
 - `packages/hyapp`: application gateways, commands, HTTP transport, and optional SolidJS bindings built on HyDB.
 
-Package names remain `@hyos/hydb` and `@hyos/hyapp` so existing imports keep working.
+The packages ship their own agent skills; see [Agent skills](#agent-skills).
 
 For agent-guided adoption and the full public API, see the [Usage reference](usage.md).
 
@@ -44,16 +55,12 @@ Browser UI → HyApp client → HTTP gateway → HyDB → LMDB
 Browser UI ← live query results ← committed changes
 ```
 
-### 1. Build the packages
+### 1. Install the packages
 
-Use Node.js 24. These are currently private workspace packages, so start with a
-local checkout:
+In your SolidJS app, install the packages and create a directory for the example:
 
 ```sh
-git clone https://github.com/samdesota/hydb.git
-cd hydb
-npm ci
-npm run build
+npm install @438d/hydb @438d/hyapp zod solid-js
 mkdir getting-started
 ```
 
@@ -69,8 +76,8 @@ gives the HTTP gateway stable query names.
 
 ```ts
 // getting-started/model.ts
-import { boolean, hydb, id, index, text } from "@hyos/hydb";
-import { hyapp } from "@hyos/hyapp";
+import { boolean, hydb, id, index, text } from "@438d/hydb";
+import { hyapp } from "@438d/hyapp";
 
 export const tasks = hydb.table(
   "tasks",
@@ -103,7 +110,7 @@ also prevents moving a task to another owner.
 
 ```ts
 // getting-started/policies.server.ts
-import { hydb } from "@hyos/hydb";
+import { hydb } from "@438d/hydb";
 import { z } from "zod";
 import { tasks } from "./model.js";
 
@@ -138,7 +145,7 @@ including `node:crypto` and the policy module.
 ```ts
 // getting-started/commands.ts
 import { randomUUID } from "node:crypto";
-import { hyapp } from "@hyos/hyapp";
+import { hyapp } from "@438d/hyapp";
 import { z } from "zod";
 import { tasks } from "./model.js";
 import { principal, writePolicies } from "./policies.server.js";
@@ -186,10 +193,10 @@ and returns the authenticated user; the browser does not choose its own principa
 ```ts
 // getting-started/server.ts
 import { createServer } from "node:http";
-import { hydb } from "@hyos/hydb";
-import { openKeyValueStorage } from "@hyos/hydb/node";
-import { hyapp } from "@hyos/hyapp";
-import { createNodeGatewayHttpHandler } from "@hyos/hyapp/node";
+import { hydb } from "@438d/hydb";
+import { openKeyValueStorage } from "@438d/hydb/node";
+import { hyapp } from "@438d/hyapp";
+import { createNodeGatewayHttpHandler } from "@438d/hyapp/node";
 import { schema, reads } from "./model.js";
 import { registry } from "./commands.js";
 import { principal, readPolicies } from "./policies.server.js";
@@ -233,9 +240,9 @@ including changes made in another tab.
 ```tsx
 // getting-started/Tasks.tsx
 import { createSignal, For, Show } from "solid-js";
-import { hyapp } from "@hyos/hyapp";
-import { httpGatewayTransport } from "@hyos/hyapp/http";
-import { createCommandDispatcher, createGatewayQuery } from "@hyos/hyapp/solid";
+import { hyapp } from "@438d/hyapp";
+import { httpGatewayTransport } from "@438d/hyapp/http";
+import { createCommandDispatcher, createGatewayQuery } from "@438d/hyapp/solid";
 import { reads, taskList } from "./model.js";
 import { registry } from "./commands.js";
 
@@ -295,7 +302,7 @@ replica.
 Use your Solid app's normal JSX build. Run HyApp's command transform with
 `target: "client"` **before** the Solid transform so the imported registry contains
 client contracts, with server handlers and policy dependencies removed. Compile
-server commands with `target: "server"`. The [build integration guide](packages/hyapp/usage.md#7-compile-shared-commands-for-client-and-server)
+server commands with `target: "server"`. The [build integration guide](packages/hyapp/skills/hyapp/references/compilation.md)
 shows the esbuild plugin and the transform hook for tools such as Vite.
 
 In a Vite development setup, proxy `/api` to `http://127.0.0.1:3001`. Also set
@@ -303,29 +310,37 @@ In a Vite development setup, proxy `/api` to `http://127.0.0.1:3001`. Also set
 Node-oriented trace logging. Keep LMDB and `server.ts` in the backend build.
 
 For isolated tests, the same key-value engine accepts `store: memoryKeyValueStore()`
-instead of `directory`; import the adapter from `@hyos/hydb/node`. The LMDB engine
+instead of `directory`; import the adapter from `@438d/hydb/node`. The LMDB engine
 currently requires the same schema when reopening; general schema migrations are
 not yet supported by this backend. See [key-value storage](packages/hydb/KEY_VALUE_PROTOTYPE.md)
 for retention and garbage collection.
 
 ### Use it in an existing project
 
-After building this checkout, install both local packages in your project,
-replacing `/absolute/path/to/hydb` with the checkout path:
-
-```sh
-npm install --save-exact /absolute/path/to/hydb/packages/hydb /absolute/path/to/hydb/packages/hyapp zod@4.4.3 solid-js@1.9.15
-```
-
-Keep Zod aligned with the checkout so schema types match across packages. Keep the
-built checkout available: npm links local directory dependencies. Reuse the
-client/server split above, mount the gateway in your server, and point the browser
-transport at it. The [HyApp usage guide](packages/hyapp/usage.md) covers other
+Install from npm as shown above, reuse the client/server split, mount the gateway
+in your server, and point the browser transport at it. Install `esbuild` if you
+use the esbuild plugin. The [HyApp usage index](packages/hyapp/usage.md) covers
 build tools, HTTP integration, and SolidJS helpers.
+
+## Agent skills
+
+Both packages include portable Agent Skills with focused usage references:
+
+- [HyDB](packages/hydb/skills/hydb/SKILL.md): schemas, queries, policies,
+  transactions, and persistence.
+- [HyApp](packages/hyapp/skills/hyapp/SKILL.md): commands, client/server builds,
+  gateways, HTTP, optimistic coordination, and SolidJS.
+
+Ask your agent to read the relevant installed file at
+`node_modules/@438d/hydb/skills/hydb/SKILL.md` or
+`node_modules/@438d/hyapp/skills/hyapp/SKILL.md`. To install one into an agent's
+supported skills directory, copy its entire folder, including `references/`.
+The files travel with the package version; automatic discovery depends on the
+agent's configuration.
 
 ## Development
 
-Use Node.js 24 and npm. From the repository root:
+Use Node.js 24.11 or newer and npm. From the repository root:
 
 ```sh
 npm ci

@@ -1,7 +1,7 @@
 {
-  "name": "@hyos/hydb",
-  "private": true,
-  "version": "0.0.0",
+  "name": "@438d/hydb",
+  "version": "0.1.1",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": {
@@ -24,7 +24,8 @@
     "test": "npm run typecheck && npm run build && node --test dist/test/*.test.js",
     "test:coverage": "npm run build && node --experimental-test-coverage --test --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=95 dist/test/*.test.js",
     "typecheck": "tsc --noEmit",
-    "bench:storage": "npm run build && node benchmarks/storage.mjs"
+    "bench:storage": "npm run build && node benchmarks/storage.mjs",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
@@ -34,5 +35,28 @@
   "dependencies": {
     "lmdb": "3.5.6",
     "zod": "^4.4.3"
-  }
+  },
+  "description": "Typed real-time database with incremental queries, live subscriptions, and persistent storage.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/samdesota/hydb.git",
+    "directory": "packages/hydb"
+  },
+  "homepage": "https://github.com/samdesota/hydb/tree/main/packages/hydb#readme",
+  "bugs": {
+    "url": "https://github.com/samdesota/hydb/issues"
+  },
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "dist/src",
+    "dist-cjs/src",
+    "dist-cjs/package.json",
+    "skills"
+  ]
 }

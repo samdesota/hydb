@@ -8,7 +8,7 @@ using TypeScript verbatim module syntax. Follow the usage link for behavior and
 the source link for exact generic signatures. Builder methods are documented in
 the relevant reference, not repeated as standalone exports.
 
-## `@hyos/hydb`
+## `@438d/hydb`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
@@ -91,7 +91,7 @@ the relevant reference, not repeated as standalone exports.
 | `SnapshotSelector` | type | [Reference](storage.md#storagedatabase-and-snapshots) | [Definition](../../packages/hydb/src/storage.ts) |
 | `hydb` | value | [Reference](database.md#schema-builders) | [Definition](../../packages/hydb/src/index.ts) |
 
-## `@hyos/hydb/node`
+## `@438d/hydb/node`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
@@ -150,7 +150,7 @@ the relevant reference, not repeated as standalone exports.
 | `importFileStorage` | value | [Reference](storage.md#import-file-storage-into-kv-storage) | [Definition](../../packages/hydb/src/node/file-import.ts) |
 | `FileImportReport` | type | [Reference](storage.md#import-file-storage-into-kv-storage) | [Definition](../../packages/hydb/src/node/file-import.ts) |
 
-## `@hyos/hyapp`
+## `@438d/hyapp`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
@@ -196,7 +196,7 @@ the relevant reference, not repeated as standalone exports.
 | `ServerCommandRegistry` | type | [Reference](application.md#registries-and-gateways) | [Definition](../../packages/hyapp/src/registry.ts) |
 | `hyapp` | value | [Reference](application.md#commands-and-contracts) | [Definition](../../packages/hyapp/src/index.ts) |
 
-## `@hyos/hyapp/compiler`
+## `@438d/hyapp/compiler`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
@@ -204,13 +204,13 @@ the relevant reference, not repeated as standalone exports.
 | `CompiledCommandModule` | type | [Reference](application.md#compile-shared-commands) | [Definition](../../packages/hyapp/src/compiler.ts) |
 | `compileCommandModule` | value | [Reference](application.md#compile-shared-commands) | [Definition](../../packages/hyapp/src/compiler.ts) |
 
-## `@hyos/hyapp/esbuild`
+## `@438d/hyapp/esbuild`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
 | `hyappCommandsPlugin` | value | [Reference](application.md#compile-shared-commands) | [Definition](../../packages/hyapp/src/esbuild.ts) |
 
-## `@hyos/hyapp/http`
+## `@438d/hyapp/http`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
@@ -218,14 +218,14 @@ the relevant reference, not repeated as standalone exports.
 | `GatewaySubscriptionMessage` | type | [Reference](application.md#http-server-and-browser-transport) | [Definition](../../packages/hyapp/src/http.ts) |
 | `httpGatewayTransport` | value | [Reference](application.md#http-server-and-browser-transport) | [Definition](../../packages/hyapp/src/http.ts) |
 
-## `@hyos/hyapp/node`
+## `@438d/hyapp/node`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
 | `createNodeGatewayHttpHandler` | value | [Reference](application.md#http-server-and-browser-transport) | [Definition](../../packages/hyapp/src/node/http.ts) |
 | `NodeGatewayHttpHandler` | type | [Reference](application.md#http-server-and-browser-transport) | [Definition](../../packages/hyapp/src/node/http.ts) |
 
-## `@hyos/hyapp/solid`
+## `@438d/hyapp/solid`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |
@@ -235,7 +235,7 @@ the relevant reference, not repeated as standalone exports.
 | `createGatewayQuery` | value | [Reference](application.md#solidjs) | [Definition](../../packages/hyapp/src/solid.ts) |
 | `createCommandDispatcher` | value | [Reference](application.md#solidjs) | [Definition](../../packages/hyapp/src/solid.ts) |
 
-## `@hyos/hyapp/wire`
+## `@438d/hyapp/wire`
 
 | Export | Kind | Usage | Source |
 | --- | --- | --- | --- |

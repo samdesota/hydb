@@ -10,15 +10,15 @@ Low-level storage operations do not apply principal policies or command schemas.
 
 | Backend | Factory and purpose |
 | --- | --- |
-| Memory | `await memoryStorage({ schema })` from `@hyos/hydb`; ephemeral storage for tests or local state. |
-| File | `await openNodeStorage({ schema, directory, migrations? })` from `@hyos/hydb/node`; append-only file engine with declarative migrations. |
-| Key-value | `await openKeyValueStorage({ schema, directory })` from `@hyos/hydb/node`; immutable trees backed by LMDB. This engine is currently described as an opt-in prototype. |
+| Memory | `await memoryStorage({ schema })` from `@438d/hydb`; ephemeral storage for tests or local state. |
+| File | `await openNodeStorage({ schema, directory, migrations? })` from `@438d/hydb/node`; append-only file engine with declarative migrations. |
+| Key-value | `await openKeyValueStorage({ schema, directory })` from `@438d/hydb/node`; immutable trees backed by LMDB. This engine is currently described as an opt-in prototype. |
 | Custom key-value adapter | `await openKeyValueStorage({ schema, store })`; same engine over a `KeyValueStore`. Choose either `directory` or `store`. |
 
 ```ts
 // database.ts — Node only
-import { hydb } from "@hyos/hydb";
-import { openKeyValueStorage } from "@hyos/hydb/node";
+import { hydb } from "@438d/hydb";
+import { openKeyValueStorage } from "@438d/hydb/node";
 import { schema } from "./model.js";
 
 export async function openDatabase(directory: string) {
@@ -65,7 +65,7 @@ key)`, `scan(request)`, and async `close()`. `get` returns a row or `undefined`.
 
 ```ts
 // scan.ts
-import type { StorageDatabase } from "@hyos/hydb";
+import type { StorageDatabase } from "@438d/hydb";
 import { tasks } from "./model.js";
 
 export async function tasksForProject(storage: StorageDatabase, projectId: string) {
@@ -181,8 +181,8 @@ Use this migration with that updated model:
 
 ```ts
 // migrations.ts
-import { text } from "@hyos/hydb";
-import { data, ddl, defineMigration } from "@hyos/hydb/node";
+import { text } from "@438d/hydb";
+import { data, ddl, defineMigration } from "@438d/hydb/node";
 
 export const migrations = [defineMigration({
   id: "001-task-description",

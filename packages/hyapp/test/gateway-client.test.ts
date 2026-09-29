@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { hydb, id, memoryStorage, storageMutation, text } from "@hyos/hydb";
+import { hydb, id, memoryStorage, storageMutation, text } from "@438d/hydb";
 import {
   createClientCommandFactory,
   directGatewayTransport,

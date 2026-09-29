@@ -1,9 +1,9 @@
-import type { Database, Transaction, WritePolicy } from "@hyos/hydb";
+import type { Database, Transaction, WritePolicy } from "@438d/hydb";
 import {
   createWritePolicyEnforcer,
   getDatabaseSchema,
   getWritePolicyPrincipalSchema,
-} from "@hyos/hydb";
+} from "@438d/hydb";
 import {
   z,
   type input as ZodInput,

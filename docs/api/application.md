@@ -15,7 +15,7 @@ Missing/duplicate policies or mismatched principal schemas reject construction.
 
 ```ts
 // policies.ts
-import { hydb } from "@hyos/hydb";
+import { hydb } from "@438d/hydb";
 import { z } from "zod";
 import { projects, tasks } from "./model.js";
 
@@ -80,7 +80,7 @@ Sources: [read policies](../../packages/hydb/src/read-policy.ts),
 
 ```ts
 // commands.ts — compile this module for the appropriate target
-import { commandFactory, commandRegistry } from "@hyos/hyapp";
+import { commandFactory, commandRegistry } from "@438d/hyapp";
 import { z } from "zod";
 import { projects, tasks } from "./model.js";
 import { principal, writePolicies } from "./policies.js";
@@ -167,8 +167,8 @@ server commands. `GatewayReadRegistry` contains terminal query objects.
 
 ```ts
 // gateway.ts
-import type { Database } from "@hyos/hydb";
-import { gateway, gatewayReadRegistry } from "@hyos/hyapp";
+import type { Database } from "@438d/hydb";
+import { gateway, gatewayReadRegistry } from "@438d/hyapp";
 import { registry } from "./commands.js";
 import { taskList } from "./model.js";
 import { principal, readPolicies } from "./policies.js";
@@ -238,8 +238,8 @@ Source: [gateway-client.ts](../../packages/hyapp/src/gateway-client.ts).
 ```ts
 // http.ts — supply an application authentication resolver
 import { createServer, type IncomingMessage } from "node:http";
-import type { Database } from "@hyos/hydb";
-import { createNodeGatewayHttpHandler } from "@hyos/hyapp/node";
+import type { Database } from "@438d/hydb";
+import { createNodeGatewayHttpHandler } from "@438d/hyapp/node";
 import { createGateway, reads } from "./gateway.js";
 
 export function createHttpServer(
@@ -289,9 +289,9 @@ It defines its read registry locally, so it never imports the server gateway.
 ```tsx
 // TaskList.tsx
 import { createSignal, For, Show } from "solid-js";
-import { gatewayClient, gatewayReadRegistry } from "@hyos/hyapp";
-import { httpGatewayTransport } from "@hyos/hyapp/http";
-import { createCommandDispatcher, createGatewayQuery } from "@hyos/hyapp/solid";
+import { gatewayClient, gatewayReadRegistry } from "@438d/hyapp";
+import { httpGatewayTransport } from "@438d/hyapp/http";
+import { createCommandDispatcher, createGatewayQuery } from "@438d/hyapp/solid";
 import { registry } from "./commands.js";
 import { taskList } from "./model.js";
 
@@ -336,7 +336,7 @@ handlers alone does not install a frontend database/coordinator.
 ## Compile shared commands
 
 `compileCommandModule(source, { target: "client" | "server", filename? })` from
-`@hyos/hyapp/compiler` returns `CompiledCommandModule` with `code` and `map`.
+`@438d/hyapp/compiler` returns `CompiledCommandModule` with `code` and `map`.
 `CommandCompilationTarget` names the target union. The client transform recognizes
 imported `commandFactory`/`hyapp.commandFactory`, removes server handlers and
 factory policy arguments, and removes dependencies made unused by that removal.
@@ -344,7 +344,7 @@ Keep `.define` definitions statically analyzable inline object literals; do not
 hide server properties in spreads/computed definitions. Review the resulting
 bundle for server-only imports; the transform is not a general secret scrubber.
 
-`hyappCommandsPlugin({ target })` from `@hyos/hyapp/esbuild` supplies an esbuild
+`hyappCommandsPlugin({ target })` from `@438d/hyapp/esbuild` supplies an esbuild
 plugin. Run command compilation before the application's Solid JSX transform.
 When composing loaders, ensure the same module receives both transforms; esbuild
 stops at the first `onLoad` result, so competing plugins may not compose on their
@@ -353,7 +353,7 @@ See the [HyApp build integration guide](../../packages/hyapp/usage.md).
 
 ## Wire values
 
-From `@hyos/hyapp/wire`, `encodeWireValue(value)` produces JSON-compatible
+From `@438d/hyapp/wire`, `encodeWireValue(value)` produces JSON-compatible
 `WireValue`, and `decodeWireValue(value)` restores typed values.
 `stringifyWire(value)` and `parseWire(text)` combine these operations with JSON.
 The HTTP adapters already use them; plain `JSON.stringify` loses some types.

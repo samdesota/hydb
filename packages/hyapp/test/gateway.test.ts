@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { hydb, id, memoryStorage, storageMutation, text } from "@hyos/hydb";
+import { hydb, id, memoryStorage, storageMutation, text } from "@438d/hydb";
 import { hyapp } from "../src/index.js";
 
 const principal = z.object({ userId: z.string() });

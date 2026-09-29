@@ -4,7 +4,7 @@ import type {
   InferCommandInput,
   InferCommandResult,
 } from "./command.js";
-import type { Query } from "@hyos/hydb";
+import type { Query } from "@438d/hydb";
 
 export type CommandRegistry = Readonly<Record<string, AnyCommand>>;
 export type ServerCommandRegistry = Readonly<Record<string, AnyServerCommand>>;

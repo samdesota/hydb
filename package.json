@@ -1,6 +1,7 @@
 {
   "name": "hydb",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "workspaces": [
     "packages/hydb",
@@ -10,6 +11,6 @@
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
-    "sandbox": "npm run sandbox --workspace @hyos/hydb"
+    "sandbox": "npm run sandbox --workspace @438d/hydb"
   }
 }

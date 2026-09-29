@@ -1,4 +1,4 @@
-import type { InferQueryResult, Query } from "@hyos/hydb";
+import type { InferQueryResult, Query } from "@438d/hydb";
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 
 import type { GatewayClient } from "./gateway-client.js";

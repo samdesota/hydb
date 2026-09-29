@@ -5,7 +5,7 @@ These throwaway, self-contained HTML sandboxes make HyDB internals inspectable w
 Run all currently registered sandboxes:
 
 ```sh
-npm run sandbox --workspace @hyos/hydb
+npm run sandbox --workspace @438d/hydb
 ```
 
 Each sandbox owns a `generate.mjs` adapter that creates real HyDB values and passes display stages to `render-sandbox.mjs`. The generated `index.html` needs no server or dependencies and can be opened directly.

@@ -3,7 +3,7 @@
 Build from the repository root:
 
 ```sh
-npm run build --workspace @hyos/hydb
+npm run build --workspace @438d/hydb
 ```
 
 Stop the app before importing its database. The importer does not acquire a
@@ -61,7 +61,7 @@ application cutover. Keep the original file database as the rollback source.
 
 ## Tests
 
-`npm test --workspace @hyos/hydb` includes importer fixtures with sessions and
+`npm test --workspace @438d/hydb` includes importer fixtures with sessions and
 ordered text chunks, nullable values, dates, Unicode, history, branches, edits,
 deletes, post-import writes, and GC. Failure tests cover corrupt sources,
 corrupted readback, changing sources, incompatible branch schemas, and existing

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { hydb, id, text, type Query } from "@hyos/hydb";
+import { hydb, id, text, type Query } from "@438d/hydb";
 import { createEffect, createRoot, createSignal } from "solid-js";
 
 import {

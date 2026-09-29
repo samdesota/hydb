@@ -1,82 +1,40 @@
-# @hyos/hyapp
+# @438d/hyapp
 
-`@hyos/hyapp` is the application-model package built on top of `@hyos/hydb`.
-It owns commands, gateways, client/server command compilation, and application
-authorization orchestration.
+`@438d/hyapp` is the application layer built on `@438d/hydb`. It provides typed
+commands, principal-bound gateways, client/server command compilation, HTTP
+transport, and optional SolidJS bindings. HyDB owns schemas, queries,
+transactions, row policies, and storage.
 
-`@hyos/hydb` remains the database package. It owns schemas, queries,
-transactions, policy primitives and enforcement, storage interfaces, and
-storage adapters. The dependency direction is one-way: `hyapp` depends on
-`hydb`; `hydb` must not depend on `hyapp`.
+## Installation
 
-The package now provides command factories, shared typed command registries,
-client/server command runtimes, a typed gateway client, a target-independent
-command compiler, an esbuild adapter, principal-bound gateways, and a shared
-HTTP adapter. The legacy `hydb.command` and `hydb.gateway` interfaces remain
-during migration. See the [usage guide](./usage.md) for an end-to-end example or
-[the command design](./docs/commands.md) for the interface and remaining
-migration sequence.
+Requires Node.js 24.11 or newer.
 
-## HTTP gateway adapter
-
-Applications register stable names for queries shared by the server and
-browser:
-
-```ts
-const reads = hyapp.gatewayReadRegistry({ board: boardQuery });
+```sh
+npm install @438d/hyapp @438d/hydb
 ```
 
-The Node adapter is a composable request handler. Authentication remains an
-application concern; its resolver returns the principal context supplied to
-the gateway:
+Install `esbuild` to use `@438d/hyapp/esbuild`, or `solid-js` to use
+`@438d/hyapp/solid`. Both integrations are optional. Install `zod` directly when
+using it to define application principal and command schemas.
 
-```ts
-const handleGateway = createNodeGatewayHttpHandler({
-  gateway,
-  reads,
-  principal: authenticateRequest,
-});
+## Usage and agent instructions
 
-createServer(async (request, response) => {
-  if (await handleGateway(request, response)) return;
-  response.writeHead(404).end();
-});
-```
+Start with the [HyApp skill](skills/hyapp/SKILL.md), or open a focused reference:
 
-The browser adapter implements `GatewayClientTransport`:
+- [Commands and authorization overrides](skills/hyapp/references/commands.md)
+- [Client/server compilation](skills/hyapp/references/compilation.md)
+- [Gateways and HTTP](skills/hyapp/references/gateway-and-http.md)
+- [Clients, optimistic coordination, and SolidJS](skills/hyapp/references/clients-and-solid.md)
 
-```ts
-const client = hyapp.gatewayClient({
-  registry,
-  transport: httpGatewayTransport({ reads }),
-});
-```
+The [usage index](usage.md) also links to HyDB's database guidance. See the
+[repository getting-started guide](https://github.com/samdesota/hydb#readme) for a
+SolidJS and Node server walkthrough.
 
-The adapter carries reads, streaming subscriptions, and commands through the
-shared `@hyos/hyapp/wire` codec. Dates, undefined values, byte arrays, bigints,
-special numbers, and objects containing reserved wire keys round-trip without
-JSON data loss.
+The npm package includes `skills/hyapp/SKILL.md` and its references. Ask your
+agent to read `node_modules/@438d/hyapp/skills/hyapp/SKILL.md`, or copy the whole
+`skills/hyapp` folder into its supported skills directory. Package installation
+alone does not register the skill with every agent.
 
-## SolidJS helpers
+## License
 
-The optional `@hyos/hyapp/solid` entry point turns a gateway client into small
-reactive query state and a typed command dispatcher:
-
-```tsx
-const board = createGatewayQuery(client, boardQuery);
-const dispatch = createCommandDispatcher(client);
-
-<Show when={board.data()}>{(rows) => <Board rows={rows()} />}</Show>;
-<button disabled={dispatch.isPending("createTask")}>Create task</button>;
-await dispatch("createTask", { id, projectId, title });
-```
-
-`createGatewayQuery` owns the initial fetch, live subscription, race handling,
-cleanup, loading/error state, and explicit refetching. Both its client and query
-may be accessors, so changing authenticated gateway context replaces the active
-subscription. `createCommandDispatcher` preserves registry-derived command,
-input, and result types. Its typed `isPending(command)` method reads reactive
-per-command state, so Solid dependents update automatically. Overlapping calls
-keep a command pending until its final execution settles. Solid is an optional
-peer dependency; non-Solid applications continue to use the base gateway
-client directly.
+MIT

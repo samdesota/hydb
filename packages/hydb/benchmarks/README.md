@@ -3,11 +3,11 @@
 Compare the existing append-only file engine against the LMDB KV prototype:
 
 ```sh
-npm run bench:storage --workspace @hyos/hydb
+npm run bench:storage --workspace @438d/hydb
 # Optional output path (relative to packages/hydb):
-npm run bench:storage --workspace @hyos/hydb -- benchmarks/results/my-run.json
+npm run bench:storage --workspace @438d/hydb -- benchmarks/results/my-run.json
 # Default: three fresh-process repetitions of each engine/dataset pair.
-HYDB_BENCH_REPEATS=1 npm run bench:storage --workspace @hyos/hydb
+HYDB_BENCH_REPEATS=1 npm run bench:storage --workspace @438d/hydb
 ```
 
 LMDB requires native memory-mapping/locking permissions; the macOS agent sandbox

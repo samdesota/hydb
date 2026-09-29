@@ -184,7 +184,7 @@ test("formatMigrationSource renders runnable migration source", () => {
   const source = formatMigrationSource("0002-mdiff", diff);
   assert.match(
     source,
-    /import \{ ddl, defineMigration \} from "@hyos\/hydb\/node"/,
+    /import \{ ddl, defineMigration \} from "@438d\/hydb\/node"/,
   );
   assert.match(source, /id: "0002-mdiff"/);
   assert.match(source, /ddl\.dropColumn\("mdiff_rows", "archivedAt"/);

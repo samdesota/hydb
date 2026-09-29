@@ -1,4 +1,4 @@
-import type { InferQueryResult, Query } from "@hyos/hydb";
+import type { InferQueryResult, Query } from "@438d/hydb";
 
 import {
   commandHasOptimistic,

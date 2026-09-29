@@ -1,4 +1,4 @@
-import type { Query } from "@hyos/hydb";
+import type { Query } from "@438d/hydb";
 
 import type {
   GatewayClientTransport,

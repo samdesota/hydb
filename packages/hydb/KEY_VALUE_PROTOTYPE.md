@@ -5,7 +5,7 @@ logic and snapshot reader. The default persistent backend is LMDB (`lmdb@3.5.6`)
 The HyOS agent module now selects LMDB; `openNodeStorage` remains the file engine.
 
 ```ts
-import { openKeyValueStorage, memoryKeyValueStore } from "@hyos/hydb/node";
+import { openKeyValueStorage, memoryKeyValueStore } from "@438d/hydb/node";
 
 // A new, separate database directory. Do not point at existing app data.
 const storage = await openKeyValueStorage({
@@ -95,7 +95,7 @@ size measurement. Concurrent inserts can affect the observed totals.
 
 ## Verification
 
-`npm test --workspace @hyos/hydb` includes adapter contract tests, cross-engine
+`npm test --workspace @438d/hydb` includes adapter contract tests, cross-engine
 behavior, failure injection, reader/retention protection, concurrent writes during
 GC, stale-writer protection and process-exit recovery (including during a sweep).
 Native LMDB needs an environment that permits its memory mapping and locking.

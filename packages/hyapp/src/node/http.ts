@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { AuthorizationError } from "@hyos/hydb";
+import { AuthorizationError } from "@438d/hydb";
 import { ZodError } from "zod";
 
 import type { Gateway } from "../gateway.js";

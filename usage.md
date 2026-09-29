@@ -51,15 +51,15 @@ For a short SolidJS walkthrough, start with the [README](README.md#getting-start
 
 | Entry point | Use |
 | --- | --- |
-| `@hyos/hydb` | `hydb` builders, database, policies, memory storage, query plans, memory/spill contracts |
-| `@hyos/hydb/node` | File and key-value persistence, LMDB, migrations, import, tree/cache adapters |
-| `@hyos/hyapp` | Commands, registries, gateways, clients, optimistic lifecycle, direct transport |
-| `@hyos/hyapp/compiler` | Build-time source transformation |
-| `@hyos/hyapp/esbuild` | Build-time esbuild integration |
-| `@hyos/hyapp/http` | Browser HTTP client and transport errors |
-| `@hyos/hyapp/node` | Node HTTP request handler |
-| `@hyos/hyapp/solid` | Solid query state and typed command dispatcher |
-| `@hyos/hyapp/wire` | Serialization for transport values |
+| `@438d/hydb` | `hydb` builders, database, policies, memory storage, query plans, memory/spill contracts |
+| `@438d/hydb/node` | File and key-value persistence, LMDB, migrations, import, tree/cache adapters |
+| `@438d/hyapp` | Commands, registries, gateways, clients, optimistic lifecycle, direct transport |
+| `@438d/hyapp/compiler` | Build-time source transformation |
+| `@438d/hyapp/esbuild` | Build-time esbuild integration |
+| `@438d/hyapp/http` | Browser HTTP client and transport errors |
+| `@438d/hyapp/node` | Node HTTP request handler |
+| `@438d/hyapp/solid` | Solid query state and typed command dispatcher |
+| `@438d/hyapp/wire` | Serialization for transport values |
 
 The export maps in the two package manifests define supported import paths.
 Use `hydb.table`, `hydb.schema`, and `hydb.query`; those builders are not standalone
@@ -68,10 +68,10 @@ Use the `InferCommandInput`, `Gateway`, and related types from the package that
 owns the command/gateway: HyDB's legacy types and HyApp's types are different.
 Private source modules and their unexported helper types are implementation details.
 
-Use Node.js 24 and build both workspace packages before consuming their exports.
-The packages are private workspace packages; local checkout installation is shown
-in the README. With linked packages, keep the application's Zod version aligned
-with the checkout to avoid incompatible schema types. HyApp is ESM; HyDB also
+Use Node.js 24.11 or newer and install `@438d/hydb` and `@438d/hyapp` from npm
+as shown in the README. When developing against linked workspace packages, build
+both packages and keep the application's Zod version aligned with the checkout
+to avoid incompatible schema types. HyApp is ESM; HyDB also
 exposes CommonJS entry points. Keep Node storage out of browser imports. The
 current browser build needs `process.env.HYOS_BOOT_TRACE` replaced with `"0"`.
 

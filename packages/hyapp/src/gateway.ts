@@ -5,7 +5,7 @@ import {
   type InferQueryResult,
   type Query,
   type ReadPolicy,
-} from "@hyos/hydb";
+} from "@438d/hydb";
 import type { input as ZodInput, output as ZodOutput, ZodType } from "zod";
 
 import {

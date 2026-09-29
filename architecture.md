@@ -5,7 +5,7 @@ commands, authorization, client/server compilation, and transports. Applications
 supply their schema, business rules, authentication, and UI.
 
 This document describes the implementation in this repository. The dependency
-runs one way: `@hyos/hyapp` depends on `@hyos/hydb`.
+runs one way: `@438d/hyapp` depends on `@438d/hydb`.
 
 ## The overall shape
 
@@ -35,8 +35,8 @@ flowchart TD
 ```
 
 The gateway is the application authorization boundary. Trusted code can also use
-HyDB directly. Node-specific persistence lives in `@hyos/hydb/node`; HTTP server
-integration lives in `@hyos/hyapp/node`. SolidJS is optional.
+HyDB directly. Node-specific persistence lives in `@438d/hydb/node`; HTTP server
+integration lives in `@438d/hyapp/node`. SolidJS is optional.
 
 | Component | Responsibility | Where to start |
 | --- | --- | --- |

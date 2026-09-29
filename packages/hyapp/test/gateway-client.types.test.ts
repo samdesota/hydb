@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { hydb, id, text, type Query } from "@hyos/hydb";
+import { hydb, id, text, type Query } from "@438d/hydb";
 import {
   createClientCommandFactory,
   gatewayClient,
