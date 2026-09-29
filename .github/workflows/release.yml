@@ -20,7 +20,8 @@ permissions:
 
 jobs:
   release-please:
-    if: github.event_name == 'push'
+    # Runs on workflow_dispatch too so the publish job's `needs` is not
+    # skipped; it no-ops (no pending releases) when invoked manually.
     runs-on: ubuntu-latest
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
