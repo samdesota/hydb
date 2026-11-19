@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/samdesota/hydb/compare/hydb-v0.3.0...hydb-v0.4.0) (2026-11-19)
+
+
+### Features
+
+* **hydb:** bounded index range scans and index migrations ([4448fde](https://github.com/samdesota/hydb/commit/4448fde6a9c7d2e3813616a5906f00c83b126059))
+
 ## [0.3.0](https://github.com/samdesota/hydb/compare/hydb-v0.2.0...hydb-v0.3.0) (2026-09-29)
 
 
