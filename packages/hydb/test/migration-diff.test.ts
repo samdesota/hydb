@@ -51,7 +51,9 @@ test("diffSchemaDescriptions produces ops that apply and reverse exactly", () =>
     diff.map((op) =>
       op.type === "addTable" || op.type === "dropTable"
         ? `${op.type}:${op.description.name}`
-        : `${op.type}:${op.table}.${op.column.name}`,
+        : op.type === "addIndex" || op.type === "dropIndex"
+          ? `${op.type}:${op.table}.${op.index.name}`
+          : `${op.type}:${op.table}.${op.column.name}`,
     ),
     [
       "dropColumn:mdiff_rows.archivedAt",

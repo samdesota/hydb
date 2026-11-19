@@ -209,6 +209,8 @@ exposes the same operations as these standalone named exports:
 | `addColumn(tableName, name, spec)` | Add a nullable, non-primary-key, non-indexed column. Existing rows start at null; use a data step to backfill. |
 | `dropColumn(tableName, name, previousSpec)` | Remove a non-indexed, non-primary-key column; include its previous definition. |
 | `changeColumn(tableName, name, previousSpec, nextSpec)` | Describe type/nullability changes; primary-key/indexed-column changes are restricted. Explicit data conversion is separate. |
+| `addIndex(table, indexName)` or `addIndex(tableName, description)` | Add an index and build it from existing rows (a unique index rejects existing duplicates). It is appended after the table's indexes, so declare it last. |
+| `dropIndex(tableName, previousDescription, position?)` | Remove an index; include its previous description, and its position when it was not the last index, so the step can be reversed. Drop an index before changing its columns. |
 
 `ColumnSpec` is a column builder or `ColumnDescription`. Schema descriptions
 capture column name, data type, nullability, primary key, and index metadata,

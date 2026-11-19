@@ -162,6 +162,18 @@ export type SchemaOp =
       table: string;
       column: ColumnDescription;
       previous: ColumnDescription;
+    }>
+  | Readonly<{
+      type: "addIndex";
+      table: string;
+      index: IndexDescription;
+    }>
+  | Readonly<{
+      type: "dropIndex";
+      table: string;
+      index: IndexDescription;
+      /** Position among the table's indexes, so reversal restores the order. */
+      position?: number;
     }>;
 
 /**
@@ -258,6 +270,54 @@ export function changeColumn(
   });
 }
 
+export type IndexSpec = string | IndexDescription;
+
+function resolveIndex(
+  table: AnyTable | string,
+  index: IndexSpec,
+): Readonly<{ table: string; index: IndexDescription }> {
+  const name = typeof table === "string" ? table : getTableDefinition(table).name;
+  if (typeof index !== "string") return { table: name, index };
+  if (typeof table === "string") {
+    throw new TypeError(
+      `Index ${index} needs its table builder or a full index description`,
+    );
+  }
+  const found = tableDescription(table).indexes.find(
+    (value) => value.name === index,
+  );
+  if (found === undefined) throw new TypeError(`Unknown index: ${name}.${index}`);
+  return { table: name, index: found };
+}
+
+/**
+ * Adds an index and builds it from the table's existing rows. Pass the table
+ * builder and the index name, or a table name and a full index description.
+ * The index is appended after the table's existing indexes, so declare it last
+ * in the table definition.
+ */
+export function addIndex(table: AnyTable | string, index: IndexSpec): SchemaOp {
+  return Object.freeze({ type: "addIndex", ...resolveIndex(table, index) });
+}
+
+/**
+ * Removes an index. The previous description is required so the op can be
+ * inverted; `position` (its place among the table's indexes) lets reversal
+ * restore the original order when it was not the last index.
+ */
+export function dropIndex(
+  table: string,
+  index: IndexDescription,
+  position?: number,
+): SchemaOp {
+  return Object.freeze({
+    type: "dropIndex",
+    table,
+    index,
+    ...(position === undefined ? {} : { position }),
+  });
+}
+
 /** Builder namespace for schema operations. */
 export const ddl = {
   addTable,
@@ -265,7 +325,12 @@ export const ddl = {
   addColumn,
   dropColumn,
   changeColumn,
+  addIndex,
+  dropIndex,
 };
+
+const sameIndex = (left: IndexDescription, right: IndexDescription) =>
+  JSON.stringify(left) === JSON.stringify(right);
 
 function workingTables(
   description: SchemaDescription,
@@ -350,6 +415,30 @@ export function applySchemaChanges(
     const table = tables.get(op.table);
     if (table === undefined) {
       throw new TypeError(`Unknown table: ${op.table}`);
+    }
+    if (op.type === "addIndex") {
+      if (table.indexes.some((index) => index.name === op.index.name)) {
+        throw new TypeError(`Index already exists: ${op.table}.${op.index.name}`);
+      }
+      for (const column of op.index.columns) assertColumn(table, column);
+      tables.set(op.table, { ...table, indexes: [...table.indexes, op.index] });
+      continue;
+    }
+    if (op.type === "dropIndex") {
+      const position = table.indexes.findIndex(
+        (index) => index.name === op.index.name,
+      );
+      if (position < 0 || !sameIndex(table.indexes[position]!, op.index)) {
+        throw new TypeError(`Previous index does not match: ${op.table}.${op.index.name}`);
+      }
+      if (op.position !== undefined && op.position !== position) {
+        throw new TypeError(`Index ${op.table}.${op.index.name} is not at position ${op.position}`);
+      }
+      tables.set(op.table, {
+        ...table,
+        indexes: table.indexes.filter((_, index) => index !== position),
+      });
+      continue;
     }
     if (op.type === "addColumn") {
       const names = columnNames(table);
@@ -440,6 +529,23 @@ export function reverseSchemaChanges(
     const table = tables.get(op.table);
     if (table === undefined) {
       throw new TypeError(`Unknown table: ${op.table}`);
+    }
+    if (op.type === "addIndex") {
+      const last = table.indexes.at(-1);
+      if (last === undefined || !sameIndex(last, op.index)) {
+        throw new TypeError(`Index does not match added index: ${op.table}.${op.index.name}`);
+      }
+      tables.set(op.table, { ...table, indexes: table.indexes.slice(0, -1) });
+      continue;
+    }
+    if (op.type === "dropIndex") {
+      if (table.indexes.some((index) => index.name === op.index.name)) {
+        throw new TypeError(`Index already exists: ${op.table}.${op.index.name}`);
+      }
+      const indexes = [...table.indexes];
+      indexes.splice(op.position ?? indexes.length, 0, op.index);
+      tables.set(op.table, { ...table, indexes });
+      continue;
     }
     if (op.type === "addColumn") {
       const existing = assertColumn(table, op.column.name);
@@ -703,6 +809,9 @@ function schemaOpKey(op: SchemaOp): string {
   if (op.type === "addTable" || op.type === "dropTable") {
     return `${op.type}:${op.description.name}`;
   }
+  if (op.type === "addIndex" || op.type === "dropIndex") {
+    return `${op.type}:${op.table}:${op.index.name}`;
+  }
   return `${op.type}:${op.table}:${op.column.name}`;
 }
 
@@ -727,6 +836,20 @@ export function diffSchemaDescriptions(
       ops.push(dropTable(before));
       continue;
     }
+    // Drop every index from the first difference on (from the end, so positions
+    // stay valid) before column changes; the target's remaining indexes are
+    // added after them.
+    let shared = 0;
+    while (
+      shared < before.indexes.length &&
+      shared < after.indexes.length &&
+      sameIndex(before.indexes[shared]!, after.indexes[shared]!)
+    ) {
+      shared += 1;
+    }
+    for (let position = before.indexes.length - 1; position >= shared; position -= 1) {
+      ops.push(dropIndex(before.name, before.indexes[position]!, position));
+    }
     const beforeColumns = new Map(
       before.columns.map((column) => [column.name, column]),
     );
@@ -748,6 +871,9 @@ export function diffSchemaDescriptions(
       if (!beforeColumns.has(name)) {
         ops.push(addColumn(before.name, name, column));
       }
+    }
+    for (const index of after.indexes.slice(shared)) {
+      ops.push(addIndex(before.name, index));
     }
   }
   for (const after of to) {
@@ -885,6 +1011,14 @@ export function formatMigrationSource(
     if (op.type === "addTable" || op.type === "dropTable") {
       lines.push(
         `    ddl.${op.type}(${JSON.stringify(op.description, null, 2).replaceAll("\n", "\n    ")}),`,
+      );
+    } else if (op.type === "addIndex") {
+      lines.push(
+        `    ddl.addIndex(${JSON.stringify(op.table)}, ${JSON.stringify(op.index)}),`,
+      );
+    } else if (op.type === "dropIndex") {
+      lines.push(
+        `    ddl.dropIndex(${JSON.stringify(op.table)}, ${JSON.stringify(op.index)}${op.position === undefined ? "" : `, ${op.position}`}),`,
       );
     } else if (op.type === "changeColumn") {
       lines.push(

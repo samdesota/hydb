@@ -72,6 +72,30 @@ function childIndex(keys: readonly string[], key: Uint8Array): number {
   return low;
 }
 
+// First entry whose key is greater than `key`.
+function upperBound(entries: readonly EncodedEntry[], key: Uint8Array): number {
+  let low = 0;
+  let high = entries.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (compare(fromBase64(entries[middle]!.key), key) <= 0) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+// Whether `key` lies beyond the bound a scan in this direction approaches last.
+function pastEnd(key: Uint8Array, range: TreeRange, reverse: boolean): boolean {
+  if (reverse) {
+    if (range.gt !== undefined && compare(key, range.gt) <= 0) return true;
+    if (range.gte !== undefined && compare(key, range.gte) < 0) return true;
+    return false;
+  }
+  if (range.lt !== undefined && compare(key, range.lt) >= 0) return true;
+  if (range.lte !== undefined && compare(key, range.lte) > 0) return true;
+  return false;
+}
+
 function inRange(key: Uint8Array, range: TreeRange): boolean {
   if (range.gt !== undefined && compare(key, range.gt) <= 0) return false;
   if (range.gte !== undefined && compare(key, range.gte) < 0) return false;
@@ -172,7 +196,11 @@ export class ImmutableBPlusTree {
   async *scan(root: TreeRoot, range: TreeRange = {}): AsyncIterable<TreeEntry> {
     if (root === null || range.limit === 0) return;
     let emitted = 0;
-    for await (const entry of this.walk(root, range.reverse === true)) {
+    const reverse = range.reverse === true;
+    for await (const entry of this.walk(root, reverse, range)) {
+      // The walk visits only pages that can overlap the range; once a key is
+      // past the far bound in scan order, nothing later can match.
+      if (pastEnd(entry.key, range, reverse)) return;
       if (!inRange(entry.key, range)) continue;
       yield entry;
       emitted += 1;
@@ -440,29 +468,59 @@ export class ImmutableBPlusTree {
     }
   }
 
-  private async *walk(id: PageId, reverse: boolean): AsyncIterable<TreeEntry> {
+  // Visits only the subtrees and leaf entries that can overlap `range`, in scan
+  // order. Entries just outside the bounds may still be yielded; scan filters them.
+  private async *walk(
+    id: PageId,
+    reverse: boolean,
+    range: TreeRange,
+  ): AsyncIterable<TreeEntry> {
+    const lower = range.gt ?? range.gte;
+    const upper = range.lt ?? range.lte;
     const page = await this.#cache.get(id);
     if (page.kind === "leaf") {
-      const entries = reverse ? [...page.entries].reverse() : page.entries;
-      for (const entry of entries) {
-        yield { key: fromBase64(entry.key), value: fromBase64(entry.value) };
+      const start = lower === undefined ? 0 : lowerBound(page.entries, lower);
+      const end =
+        upper === undefined
+          ? page.entries.length
+          : upperBound(page.entries, upper);
+      if (reverse) {
+        for (let index = end - 1; index >= start; index -= 1) {
+          const entry = page.entries[index]!;
+          yield { key: fromBase64(entry.key), value: fromBase64(entry.value) };
+        }
+      } else {
+        for (let index = start; index < end; index += 1) {
+          const entry = page.entries[index]!;
+          yield { key: fromBase64(entry.key), value: fromBase64(entry.value) };
+        }
       }
       return;
     }
-    const children = reverse ? [...page.children].reverse() : page.children;
-    // Fetch the whole next level concurrently instead of one page at a time;
-    // on a cold cache this turns serialized disk reads into parallel ones.
+    // Child i holds keys in [keys[i - 1], keys[i]).
+    const first = lower === undefined ? 0 : childIndex(page.keys, lower);
+    const last =
+      upper === undefined
+        ? page.children.length - 1
+        : childIndex(page.keys, upper);
+    const relevant = page.children.slice(first, last + 1);
+    const children = reverse ? relevant.reverse() : relevant;
+    // Fetch the overlapping part of the next level concurrently instead of one
+    // page at a time; on a cold cache this turns serialized reads into parallel ones.
     const childPages = await Promise.all(
       children.map((child) => this.#cache.get(child)),
     );
-    // Warm the level after next in the background so descending stays hot.
-    for (const childPage of childPages) {
-      if (childPage.kind !== "internal") continue;
-      for (const grandchild of childPage.children) {
-        void this.#cache.get(grandchild).catch(() => undefined);
+    // Full scans also warm the level after next so descending stays hot. Bounded
+    // scans skip this: most grandchildren of the edge children are out of range.
+    if (lower === undefined && upper === undefined) {
+      for (const childPage of childPages) {
+        if (childPage.kind !== "internal") continue;
+        for (const grandchild of childPage.children) {
+          void this.#cache.get(grandchild).catch(() => undefined);
+        }
       }
     }
-    for (const child of children) yield* this.walk(child, reverse);
+    for (const child of children) yield* this.walk(child, reverse, range);
   }
 
   private async writePage(page: Page): Promise<PageId> {

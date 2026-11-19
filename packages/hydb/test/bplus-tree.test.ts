@@ -351,3 +351,83 @@ test("random mutation histories match an independent ordered map model", async (
     });
   }
 });
+
+test("bounded range scans match a full filter across page boundaries", async () => {
+  await withTree({ maxEntries: 4 }, async (tree) => {
+    // Even keys only, so bounds land both on and between stored keys.
+    const keys = Array.from({ length: 150 }, (_, index) => index * 2);
+    const root = await tree.mutate(
+      null,
+      keys.map((value) => ({
+        type: "put" as const,
+        key: numberKey(value),
+        value: numberValue(value),
+      })),
+    );
+    const bounds = [null, 0, 1, 7, 8, 63, 64, 150, 151, 298, 299, 400];
+    for (const low of bounds) {
+      for (const high of bounds) {
+        for (const [lowKind, highKind] of [
+          ["gte", "lt"],
+          ["gt", "lte"],
+        ] as const) {
+          for (const reverse of [false, true]) {
+            const range: TreeRange = {
+              ...(low === null ? {} : { [lowKind]: numberKey(low) }),
+              ...(high === null ? {} : { [highKind]: numberKey(high) }),
+              reverse,
+            };
+            const expected = keys
+              .filter((value) =>
+                low === null
+                  ? true
+                  : lowKind === "gte"
+                    ? value >= low
+                    : value > low,
+              )
+              .filter((value) =>
+                high === null
+                  ? true
+                  : highKind === "lt"
+                    ? value < high
+                    : value <= high,
+              )
+              .map((value) => [value, `value-${value}`] as const);
+            if (reverse) expected.reverse();
+            assert.deepEqual(
+              await entries(tree, root, range),
+              expected,
+              JSON.stringify({ low, high, lowKind, highKind, reverse }),
+            );
+          }
+        }
+      }
+    }
+  });
+});
+
+test("narrow range scans read only the pages on the path to the range", async () => {
+  await withTree({ maxEntries: 4 }, async (tree, store) => {
+    const root = await tree.mutate(
+      null,
+      Array.from({ length: 2_000 }, (_, value) => ({
+        type: "put" as const,
+        key: numberKey(value),
+        value: numberValue(value),
+      })),
+    );
+    // A cold cache over the same pages counts every page the scan loads.
+    const cold = new ImmutableBPlusTree(store, { maxEntries: 4 });
+    assert.deepEqual(
+      await entries(cold, root, { gte: numberKey(1_000), lt: numberKey(1_003) }),
+      [1_000, 1_001, 1_002].map((value) => [value, `value-${value}`]),
+    );
+    // Depth is about log2(2000) ≈ 11 levels at minimum fill; a full walk loads
+    // over a thousand pages.
+    assert.ok(
+      cold.cacheStats().misses < 60,
+      `read ${cold.cacheStats().misses} pages`,
+    );
+    cold.dispose();
+  });
+});

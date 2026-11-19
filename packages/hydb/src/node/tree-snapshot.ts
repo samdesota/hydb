@@ -105,14 +105,19 @@ export class NodeSnapshot implements StorageSnapshot {
       if (index === undefined)
         throw new TypeError(`Unknown index: ${request.index}`);
       const root = table.indexes[index.name];
+      // With a key, range bounds (which extend that key) narrow the prefix.
+      const bounds = encodedRange(request.range, true);
       const range =
         request.key === undefined
-          ? encodedRange(request.range, true)
+          ? bounds
           : {
-              gte: encodeOrderedKey(request.key),
-              lt: keyPrefixUpperBound(encodeOrderedKey(request.key)),
-              reverse: request.range?.reverse,
-              limit: request.range?.limit,
+              ...bounds,
+              ...(bounds.gte === undefined
+                ? { gte: encodeOrderedKey(request.key) }
+                : {}),
+              ...(bounds.lt === undefined
+                ? { lt: keyPrefixUpperBound(encodeOrderedKey(request.key)) }
+                : {}),
             };
       for await (const entry of this.tree.scan(root, range)) {
         const key = decodeValue(entry.value) as StorageKey;

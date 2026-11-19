@@ -110,6 +110,7 @@ the relevant reference, not repeated as standalone exports.
 | `openNodeStorage` | value | [Reference](storage.md#choose-and-open-a-backend) | [Definition](../../packages/hydb/src/node/node-storage.ts) |
 | `NodeStorageOptions` | type | [Reference](storage.md#choose-and-open-a-backend) | [Definition](../../packages/hydb/src/node/node-storage.ts) |
 | `addColumn` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
+| `addIndex` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `addTable` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `changeColumn` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `checkMigrationChain` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
@@ -119,6 +120,7 @@ the relevant reference, not repeated as standalone exports.
 | `describeSchema` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `diffSchemaDescriptions` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `dropColumn` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
+| `dropIndex` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `dropTable` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `formatMigrationSource` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |
 | `applySchemaChanges` | value | [Reference](storage.md#file-engine-migrations) | [Definition](../../packages/hydb/src/node/migration.ts) |

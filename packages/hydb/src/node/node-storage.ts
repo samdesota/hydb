@@ -27,7 +27,12 @@ import {
   type StorageSnapshot,
 } from "../storage.js";
 import { ImmutableBPlusTree, type TreeRoot } from "./bplus-tree.js";
-import { decodeValue, encodeOrderedKey, encodeValue } from "./codec.js";
+import {
+  decodeValue,
+  encodeOrderedKey,
+  encodeValue,
+  keyPrefixUpperBound,
+} from "./codec.js";
 import {
   buildMigrationPlan,
   type Migration,
@@ -50,6 +55,8 @@ import {
   cloneRow,
   decodeRow,
   foreverRetention,
+  indexKey,
+  indexPrefix,
   newCommitId,
   primaryKey,
   sameRetention,
@@ -921,6 +928,39 @@ export class NodeStorageDatabase implements StorageDatabase {
     const metadata = this.tables.get(op.table);
     if (table === undefined || metadata === undefined) {
       throw new TypeError(`Unknown migration table: ${op.table}`);
+    }
+    if (op.type === "addIndex") {
+      if (table.indexes[op.index.name] !== undefined) {
+        throw new TypeError(`Index already exists: ${op.table}.${op.index.name}`);
+      }
+      // Rows are unchanged, so no change records; only the new tree is written.
+      let root: TreeRoot = null;
+      for await (const entry of this.tree.scan(table.primary)) {
+        const row = decodeRow(entry.value);
+        const key = primaryKey(metadata, row);
+        if (op.index.unique) {
+          const prefix = encodeOrderedKey(indexPrefix(op.index, row));
+          for await (const _ of this.tree.scan(root, {
+            gte: prefix,
+            lt: keyPrefixUpperBound(prefix),
+            limit: 1,
+          })) {
+            throw new TypeError(`Unique index ${op.index.name} rejected a duplicate key`);
+          }
+        }
+        root = await this.tree.mutate(root, [
+          { type: "put", key: indexKey(op.index, row, key), value: encodeValue(key) },
+        ]);
+      }
+      table.indexes[op.index.name] = root;
+      return;
+    }
+    if (op.type === "dropIndex") {
+      if (!(op.index.name in table.indexes)) {
+        throw new TypeError(`Unknown index: ${op.table}.${op.index.name}`);
+      }
+      delete table.indexes[op.index.name];
+      return;
     }
     if (op.type === "changeColumn") {
       this.assertIndexFree(metadata, op.column.name, "change");

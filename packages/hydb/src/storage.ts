@@ -109,7 +109,12 @@ export type IndexScan<TableValue extends AnyTable = AnyTable> = Readonly<{
   type: "index";
   table: TableValue;
   index: string;
+  /** Equality prefix over the index columns. */
   key?: StorageKey;
+  /**
+   * Bounds are index-column prefixes: a bound of length n compares against a
+   * row's first n index values. With `key`, bounds extend it and narrow it.
+   */
   range?: StorageRange;
 }>;
 
@@ -279,6 +284,18 @@ function storageKeyInRange(key: StorageKey, range: StorageRange): boolean {
   return true;
 }
 
+// Like storageKeyInRange, but each bound is a prefix: a key compares by its
+// leading values only, matching the node storage's encoded prefix bounds.
+function storageKeyInPrefixRange(key: StorageKey, range: StorageRange): boolean {
+  const compare = (bound: StorageKey) =>
+    compareStorageKeys(key.slice(0, bound.length), bound);
+  if (range.gt !== undefined && compare(range.gt) <= 0) return false;
+  if (range.gte !== undefined && compare(range.gte) < 0) return false;
+  if (range.lt !== undefined && compare(range.lt) >= 0) return false;
+  if (range.lte !== undefined && compare(range.lte) > 0) return false;
+  return true;
+}
+
 function rowKey(
   state: TableState,
   row: Readonly<Record<string, unknown>>,
@@ -420,7 +437,11 @@ class MemorySnapshot implements StorageSnapshot {
       })
       .filter(({ key }) => {
         if (request.type === "index" && request.key !== undefined) {
-          return storageKeyHasPrefix(key, request.key);
+          return (
+            storageKeyHasPrefix(key, request.key) &&
+            (request.range === undefined ||
+              storageKeyInPrefixRange(key, request.range))
+          );
         }
         return (
           request.range === undefined || storageKeyInRange(key, request.range)

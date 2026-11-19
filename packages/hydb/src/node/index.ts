@@ -13,6 +13,7 @@ export { NodeStorageDatabase, openNodeStorage } from "./node-storage.js";
 export type { NodeStorageOptions } from "./node-storage.js";
 export {
   addColumn,
+  addIndex,
   addTable,
   changeColumn,
   checkMigrationChain,
@@ -22,6 +23,7 @@ export {
   describeSchema,
   diffSchemaDescriptions,
   dropColumn,
+  dropIndex,
   dropTable,
   formatMigrationSource,
   applySchemaChanges,
@@ -31,6 +33,7 @@ export {
   type ColumnDescription,
   type ColumnSpec,
   type IndexDescription,
+  type IndexSpec,
   type Migration,
   type MigrationDataStep,
   type MigrationDatabase,

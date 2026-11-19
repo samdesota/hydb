@@ -3,7 +3,7 @@ import {
   type MemoryHandle,
   type MemoryManager,
 } from "./memory.js";
-import type { PhysicalQueryPlan, PlannedValue } from "./planner.js";
+import type { IndexBound, PhysicalQueryPlan, PlannedValue } from "./planner.js";
 import {
   compareQueryValues,
   evaluateExpressionNode,
@@ -216,15 +216,26 @@ async function* scanRows(
     return;
   }
 
-  const range: StorageRange = {
-    reverse: plan.access.reverse,
-    ...(plan.access.limit === undefined ? {} : { limit: plan.access.limit }),
-  };
   const key =
     plan.access.kind === "index-scan"
       ? plan.access.key.map((value) => resolveValue(value, parentContext))
       : undefined;
   if (key?.includes(undefined)) return;
+  // Bounds on the column after the equality prefix, as `[...key, value]` tuple
+  // prefixes. An unresolved value leaves that side open; the filters still apply.
+  const bound = (value: IndexBound | undefined): StorageKey | undefined => {
+    if (value === undefined || key === undefined) return undefined;
+    const resolved = resolveValue(value.value, parentContext);
+    return resolved === undefined || resolved === null ? undefined : [...key, resolved];
+  };
+  const bounds = plan.access.kind === "index-scan" ? plan.access.range : undefined;
+  const low = bound(bounds?.lower), high = bound(bounds?.upper);
+  const range: StorageRange = {
+    ...(low === undefined ? {} : bounds!.lower!.inclusive ? { gte: low } : { gt: low }),
+    ...(high === undefined ? {} : bounds!.upper!.inclusive ? { lte: high } : { lt: high }),
+    reverse: plan.access.reverse,
+    ...(plan.access.limit === undefined ? {} : { limit: plan.access.limit }),
+  };
   const request =
     plan.access.kind === "index-scan"
       ? {

@@ -40,9 +40,15 @@ export type PhysicalAccess =
       table: AnyTable;
       index: string;
       key: readonly PlannedValue[];
+      // Bounds on the index column after `key`. They narrow the scan only; the
+      // comparisons stay in `filters`, so every consumer remains correct without them.
+      range?: IndexRange;
       reverse: boolean;
       limit?: number;
     }>;
+
+export type IndexBound = Readonly<{ inclusive: boolean; value: PlannedValue }>;
+export type IndexRange = Readonly<{ lower?: IndexBound; upper?: IndexBound }>;
 
 export type PhysicalQueryPlan = Readonly<{
   source: QuerySource;
@@ -86,6 +92,7 @@ type Equality = Readonly<{
 type IndexCandidate = Readonly<{
   definition: IndexDefinition;
   equalities: readonly Equality[];
+  range?: IndexRange;
   orderCovered: boolean;
   reverse: boolean;
   uniqueExact: boolean;
@@ -145,6 +152,60 @@ function equalityFor(
   return undefined;
 }
 
+const flipped = { gt: "lt", gte: "lte", lt: "gt", lte: "gte" } as const;
+
+// A `column <op> value` comparison usable as an index bound, normalized so the
+// column is on the left.
+function boundFor(
+  expression: ExpressionNode,
+  column: string,
+  localSource: QuerySource,
+): Readonly<{ lower: boolean; bound: IndexBound }> | undefined {
+  if (expression.type !== "comparison") return undefined;
+  const operator = expression.operator;
+  if (operator !== "gt" && operator !== "gte" && operator !== "lt" && operator !== "lte") {
+    return undefined;
+  }
+  const local = (node: ExpressionNode) =>
+    node.type === "field" && node.source === localSource && node.column === column;
+  let normalized: "gt" | "gte" | "lt" | "lte";
+  let value: PlannedValue | undefined;
+  if (local(expression.left)) {
+    normalized = operator;
+    value = plannedValue(expression.right, localSource);
+  } else if (local(expression.right)) {
+    normalized = flipped[operator];
+    value = plannedValue(expression.left, localSource);
+  } else return undefined;
+  if (value === undefined) return undefined;
+  return {
+    lower: normalized === "gt" || normalized === "gte",
+    bound: Object.freeze({ inclusive: normalized.endsWith("e"), value }),
+  };
+}
+
+function rangeFor(
+  filters: readonly ExpressionNode[],
+  column: string | undefined,
+  localSource: QuerySource,
+): IndexRange | undefined {
+  if (column === undefined) return undefined;
+  let lower: IndexBound | undefined;
+  let upper: IndexBound | undefined;
+  for (const filter of filters) {
+    const found = boundFor(filter, column, localSource);
+    if (found === undefined) continue;
+    if (found.lower) lower ??= found.bound;
+    else upper ??= found.bound;
+  }
+  return lower === undefined && upper === undefined
+    ? undefined
+    : Object.freeze({
+        ...(lower === undefined ? {} : { lower }),
+        ...(upper === undefined ? {} : { upper }),
+      });
+}
+
 function tableFor(schema: AnySchema, name: string): AnyTable {
   const table = Object.values(getSchemaDefinition(schema).tables).find(
     (candidate) => getTableDefinition(candidate).name === name,
@@ -158,6 +219,7 @@ function indexCandidate(
   equalityByColumn: ReadonlyMap<string, Equality>,
   order: QueryPlan["order"],
   localSource: QuerySource,
+  filters: readonly ExpressionNode[],
 ): IndexCandidate | undefined {
   const metadata = getIndexDefinition(definition);
   const columnNames = metadata.columns.map(
@@ -193,9 +255,15 @@ function indexCandidate(
   if (equalities.length === 0 && (order.length === 0 || !orderCovered)) {
     return undefined;
   }
+  // Storage scans bound the next column only beneath an equality prefix.
+  const range =
+    equalities.length === 0
+      ? undefined
+      : rangeFor(filters, columnNames[equalities.length], localSource);
   return {
     definition,
     equalities,
+    ...(range === undefined ? {} : { range }),
     orderCovered,
     reverse:
       remainingOrder.length > 0 && remainingOrder[0]!.direction === "desc",
@@ -213,6 +281,9 @@ function compareCandidates(
   }
   if (left.orderCovered !== right.orderCovered) {
     return left.orderCovered ? -1 : 1;
+  }
+  if ((left.range === undefined) !== (right.range === undefined)) {
+    return left.range === undefined ? 1 : -1;
   }
   return 0;
 }
@@ -299,6 +370,7 @@ function planNode(schema: AnySchema, logical: QueryPlan): PhysicalQueryPlan {
           equalityByColumn,
           logical.order,
           logical.source,
+          filters,
         ),
       )
       .filter((value): value is IndexCandidate => value !== undefined)
@@ -332,6 +404,7 @@ function planNode(schema: AnySchema, logical: QueryPlan): PhysicalQueryPlan {
         table,
         index: getIndexDefinition(candidate.definition).name,
         key: Object.freeze(candidate.equalities.map(({ value }) => value)),
+        ...(candidate.range === undefined ? {} : { range: candidate.range }),
         reverse: candidate.reverse,
         ...(scanLimit !== undefined &&
         logical.authorization === undefined &&
