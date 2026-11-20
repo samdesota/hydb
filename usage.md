@@ -22,9 +22,9 @@ For a short SolidJS walkthrough, start with the [README](README.md#getting-start
    from a browser-safe module. Add indexes for frequently filtered relationship
    columns. Completion: the schema has a primary key on every table, and queries
    type-check with the intended result shape.
-2. **Choose storage and ownership.** Use `openKeyValueStorage({ schema, directory })`
-   for LMDB, `openNodeStorage` for file storage with migrations, or `memoryStorage`
-   for a simple ephemeral database. Pass it to `await hydb.database(...)`.
+2. **Choose storage and ownership.** Use `openStorage({ schema, directory, migrations })`
+   for persistent LMDB storage with bounded retention, or `memoryStorage` for a
+   simple ephemeral database. `openNodeStorage` (file engine) is deprecated. Pass it to `await hydb.database(...)`.
    Completion: the owner has a shutdown path that awaits `database.close()`.
 3. **Define authorization.** Share one principal Zod schema instance between
    policies, command factories, and gateways. Provide exactly one read and write

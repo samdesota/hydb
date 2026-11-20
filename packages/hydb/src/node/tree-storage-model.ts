@@ -275,6 +275,9 @@ export async function applyTreeMutations(
     }
 
     for (const index of metadata.indexes) {
+      // A migration data step can run before a later step adds this index;
+      // that step builds it from the rows, so it must not exist yet.
+      if (!(index.name in table.indexes)) continue;
       let root = table.indexes[index.name] ?? null;
       if (before !== undefined) {
         root = await tree.mutate(root, [

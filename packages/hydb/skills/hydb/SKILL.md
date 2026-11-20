@@ -43,10 +43,10 @@ inspect the installed package's `dist/src/*.d.ts` and `dist/src/node/*.d.ts`.
 - Await transaction operations and keep transaction objects inside their
   callback. Conflicting writes are rejected; handlers are not automatically
   rerun. Prefer HyApp commands when defining application mutations.
-- Choose storage deliberately: `memoryStorage` is ephemeral;
-  `openNodeStorage` is the file engine with migrations;
-  `openKeyValueStorage` uses LMDB by default and currently requires the same
-  schema on reopen. File-to-LMDB import is a separate offline operation.
+- Choose storage deliberately: use `openStorage` (LMDB, ordered migrations,
+  500-commit retention window) for persistent data; `memoryStorage` is
+  ephemeral. `openNodeStorage` is the deprecated file engine; `openStorage`
+  migrates its `hydb.data` in the same directory on first open.
 - Dispose subscriptions and snapshots. `database.close()` closes its storage.
   Garbage collection is explicit and LMDB reader protection is local to the
   storage instance.

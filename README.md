@@ -181,8 +181,8 @@ export const registry = hyapp.commandRegistry({ createTask, completeTask });
 
 ### 5. Serve the gateway with key-value storage
 
-`openKeyValueStorage({ directory, schema })` selects LMDB and reopens the same
-stored data on later runs. The HTTP handler exposes the registered queries,
+`openStorage({ directory, schema })` selects LMDB with a 500-commit history
+window and reopens the same stored data on later runs. The HTTP handler exposes the registered queries,
 subscriptions, and commands. Mount it in your Node server and serve or proxy
 `/api/hyapp` on the same origin as your Solid app.
 
@@ -194,14 +194,14 @@ and returns the authenticated user; the browser does not choose its own principa
 // getting-started/server.ts
 import { createServer } from "node:http";
 import { hydb } from "@438d/hydb";
-import { openKeyValueStorage } from "@438d/hydb/node";
+import { openStorage } from "@438d/hydb/node";
 import { hyapp } from "@438d/hyapp";
 import { createNodeGatewayHttpHandler } from "@438d/hyapp/node";
 import { schema, reads } from "./model.js";
 import { registry } from "./commands.js";
 import { principal, readPolicies } from "./policies.server.js";
 
-const storage = await openKeyValueStorage({
+const storage = await openStorage({
   schema,
   directory: "./.data/getting-started",
 });
@@ -309,11 +309,10 @@ In a Vite development setup, proxy `/api` to `http://127.0.0.1:3001`. Also set
 `define: { "process.env.HYOS_BOOT_TRACE": '"0"' }` in the browser build to disable
 Node-oriented trace logging. Keep LMDB and `server.ts` in the backend build.
 
-For isolated tests, the same key-value engine accepts `store: memoryKeyValueStore()`
-instead of `directory`; import the adapter from `@438d/hydb/node`. The LMDB engine
-currently requires the same schema when reopening; general schema migrations are
-not yet supported by this backend. See [key-value storage](packages/hydb/KEY_VALUE_PROTOTYPE.md)
-for retention and garbage collection.
+For isolated tests, `openKeyValueStorage` accepts `store: memoryKeyValueStore()`
+instead of `directory`; import the adapter from `@438d/hydb/node`. Pass ordered
+`migrations` when the schema changes, and `gcIntervalMs` to collect history
+outside the retention window. See [Storage API](docs/api/storage.md).
 
 ### Use it in an existing project
 

@@ -8,16 +8,18 @@ choosing persistent storage. Examples use `appSchema` and `tasks` from
 
 Use the Node storage adapter for a persistent backend:
 
-This is the file engine; it supports ordered schema/data migrations. For LMDB
-and storage-selection constraints, see [persistence.md](persistence.md).
+This is LMDB with ordered schema/data migrations and a 500-commit retention
+window. For engine selection, legacy file databases and garbage collection,
+see [persistence.md](persistence.md).
 
 ```ts
 import { hydb } from "@438d/hydb";
-import { openNodeStorage } from "@438d/hydb/node";
+import { openStorage } from "@438d/hydb/node";
 
-const storage = await openNodeStorage({
+const storage = await openStorage({
   directory: "./data/project-app",
   schema: appSchema,
+  migrations,
 });
 
 export const database = await hydb.database({
