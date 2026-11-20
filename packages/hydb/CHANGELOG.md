@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/samdesota/hydb/compare/hydb-v0.4.0...hydb-v0.5.0) (2026-11-20)
+
+
+### Features
+
+* **hydb:** LMDB migrations, openStorage default with retention, file-to-LMDB migration ([afe5efe](https://github.com/samdesota/hydb/commit/afe5efee2990f6ea954ee6be41e4f790c5c24435))
+* **hydb:** LMDB migrations, openStorage default with retention, file-to-LMDB migration ([f61557d](https://github.com/samdesota/hydb/commit/f61557d6bc6d1c7ab14ca93c1f8b4961a862d864))
+
 ## [0.4.0](https://github.com/samdesota/hydb/compare/hydb-v0.3.0...hydb-v0.4.0) (2026-11-19)
 
 

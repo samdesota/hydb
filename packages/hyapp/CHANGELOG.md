@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.5](https://github.com/samdesota/hydb/compare/hyapp-v0.1.4...hyapp-v0.1.5) (2026-11-20)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @438d/hydb bumped from ^0.4.0 to ^0.5.0
+
 ## [0.1.4](https://github.com/samdesota/hydb/compare/hyapp-v0.1.3...hyapp-v0.1.4) (2026-11-19)
 
 
