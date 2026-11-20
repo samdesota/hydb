@@ -11,18 +11,19 @@ Low-level storage operations do not apply principal policies or command schemas.
 | Backend | Factory and purpose |
 | --- | --- |
 | Memory | `await memoryStorage({ schema })` from `@438d/hydb`; ephemeral storage for tests or local state. |
-| File | `await openNodeStorage({ schema, directory, migrations? })` from `@438d/hydb/node`; append-only file engine with declarative migrations. |
-| Key-value | `await openKeyValueStorage({ schema, directory })` from `@438d/hydb/node`; immutable trees backed by LMDB. This engine is currently described as an opt-in prototype. |
+| **Default** | `await openStorage({ schema, directory, migrations?, retention?, gcIntervalMs? })` from `@438d/hydb/node`; LMDB in `<directory>/lmdb` with `defaultRetention` (500 commits per branch). Migrates a legacy `<directory>/hydb.data` on first open. |
+| Key-value | `await openKeyValueStorage({ schema, directory, migrations? })` from `@438d/hydb/node`; the same LMDB engine without defaults (retains forever unless `retention` is set). |
+| File (deprecated) | `await openNodeStorage({ schema, directory, migrations? })` from `@438d/hydb/node`; legacy append-only file engine. |
 | Custom key-value adapter | `await openKeyValueStorage({ schema, store })`; same engine over a `KeyValueStore`. Choose either `directory` or `store`. |
 
 ```ts
 // database.ts — Node only
 import { hydb } from "@438d/hydb";
-import { openKeyValueStorage } from "@438d/hydb/node";
-import { schema } from "./model.js";
+import { openStorage } from "@438d/hydb/node";
+import { schema, migrations } from "./model.js";
 
 export async function openDatabase(directory: string) {
-  const storage = await openKeyValueStorage({ schema, directory });
+  const storage = await openStorage({ schema, directory, migrations });
   try { return await hydb.database({ schema, storage }); }
   catch (error) { await storage.close(); throw error; }
 }
@@ -36,9 +37,12 @@ engine additionally exposes `cacheStats()`, `reclaimCache(bytes)`, and
 
 Shared options are `schema`, `retention`, `cacheBytes` (default 16 MiB),
 `maxEntries` (default 64 per tree page), and `memory` (a `MemoryManager`).
-`NodeStorageOptions` also requires `directory` and accepts `migrations`.
+Both `NodeStorageOptions` and `KeyValueStorageOptions` accept `migrations`.
 `KeyValueStorageOptions` chooses directory/store and adds `gcBatchSize`
-(default 128, integer 1–4096). The KV engine owns an injected store and closes it
+(default 128, integer 1–4096), `gcIntervalMs` (timed `collectGarbage()`, at
+least 1000, off by default) and `onGarbageCollection` (observes timed runs).
+`OpenStorageOptions` is `KeyValueStorageOptions` with a required `directory`
+and `onLegacyMigration(report)`. The KV engine owns an injected store and closes it
 on shutdown or failed opening. Do not reuse that store in another owner.
 
 Use one active writer per database. KV metadata compare-and-publish rejects a
@@ -167,14 +171,14 @@ The internal `{ $hydb: "date", value: ... }` marker is reserved; do not store
 application records with that shape. The [wire codec](application.md#wire-values)
 is separate and supports more types.
 
-## File-engine migrations
+## Migrations
 
-Pass the **current** schema and an ordered `migrations` list to `openNodeStorage`.
+Pass the **current** schema and an ordered `migrations` list to `openStorage`,
+`openKeyValueStorage` or `openNodeStorage`; all engines run the same steps.
 Persist stable migration IDs and keep applied definitions unchanged. Progress is
 durable per step and branch, so reopening resumes completed progress; the whole
 migration chain is not one atomic transaction. Keep external side effects out of
-data steps. KV storage does not run these migrations and requires a matching
-schema on reopen.
+data steps. A stored schema outside the declared chain is rejected.
 
 Example: the current model adds a nullable `description: text()` to `tasks`.
 Use this migration with that updated model:
@@ -262,6 +266,17 @@ legacy `NodeStorageOptions` fields `addNullableColumns`,
 Source: [migration.ts](../../packages/hydb/src/node/migration.ts).
 
 ## Import file storage into KV storage
+
+`await migrateFileStorage({ sourceDirectory, destinationDirectory, schema,
+migrations?, retention?, onProgress? })` is the complete offline move that
+`openStorage` runs automatically. It clones `hydb.data` into a staging directory,
+applies `migrations` to the clone with the file engine, compacts it to a window
+`retention` (older history is not imported), imports and verifies it,
+reopens it with `retention`, checks that the source is byte-identical, and
+renames the result to `destinationDirectory`. A failure removes the staging
+directory and leaves no destination. The source is never modified; keep it for
+rollback until the cutover is verified. Returns `FileMigrationReport`
+(`sourceFile`, `destinationDirectory`, `sourceSha256`, `import`).
 
 `await importFileStorage({ sourceFile, destinationDirectory, schema, openStore?,
 onProgress? })` performs an offline import. Stop the source writer first; the

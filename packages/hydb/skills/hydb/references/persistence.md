@@ -1,49 +1,57 @@
 # Persistence, migration, and retention
 
 Use this reference when selecting a persistent engine or changing stored data.
-Examples assume an existing application schema. The file engine and LMDB engine
-share `StorageDatabase`, but they have different migration and cleanup behavior.
+Examples assume an existing application schema.
 
 ## Choose an engine
 
 | API | Storage | Schema changes |
 | --- | --- | --- |
+| `openStorage({ schema, directory, migrations })` | **Default.** LMDB, 500-commit window | Ordered schema/data migrations; migrates a legacy `hydb.data` |
+| `openKeyValueStorage({ schema, directory, migrations })` | LMDB, retains forever unless configured | Ordered schema/data migrations |
+| `openKeyValueStorage({ schema, store: memoryKeyValueStore() })` | KV engine with an ephemeral backend | Same as the KV engine |
 | `memoryStorage({ schema })` | Ephemeral memory | Recreate for a new schema |
-| `openNodeStorage({ schema, directory, migrations })` | Append-only file engine | Ordered schema/data migrations |
-| `openKeyValueStorage({ schema, directory })` | LMDB by default | Reopening requires the same schema |
-| `openKeyValueStorage({ schema, store: memoryKeyValueStore() })` | KV engine with an ephemeral backend | Same schema constraints as the KV engine |
+| `openNodeStorage(...)` | Legacy append-only file engine (deprecated) | Ordered schema/data migrations |
 
-All except `memoryStorage` are imported from `@438d/hydb/node`. Keep an existing
-application's engine unless its requirements call for a change. Do not point a
-different engine at existing data and assume conversion will happen.
+All except `memoryStorage` are imported from `@438d/hydb/node`. New code uses
+`openStorage`:
 
 ```ts
 import { hydb } from "@438d/hydb";
-import { openKeyValueStorage } from "@438d/hydb/node";
-import { appSchema } from "./model.js";
+import { openStorage } from "@438d/hydb/node";
+import { appSchema, migrations } from "./model.js";
 
-const storage = await openKeyValueStorage({
+const storage = await openStorage({
   schema: appSchema,
-  directory: "./data/project-app-lmdb",
+  directory: "./data/project-app",
+  migrations,
+  gcIntervalMs: 10 * 60_000,
 });
 const database = await hydb.database({ schema: appSchema, storage });
 // Use the database; close it on shutdown.
 await database.close();
 ```
 
+`openStorage` keeps its database in `<directory>/lmdb`, applies
+`defaultRetention` (`{ mode: "window", keepAtLeast: 500 }`) unless `retention`
+is given, and runs garbage collection on `gcIntervalMs` when set (off by
+default; `onGarbageCollection` observes timed runs). Open each directory from
+one process at a time.
+
 The KV engine owns and closes a supplied `store`. Its LMDB backend waits for
 durable publication before advancing public heads and emitting changes. After
 an uncertain publication/I/O failure, close and reopen; validation failures
 before publication leave the previous head intact.
 
-## File-engine schema migrations
+## Schema migrations
 
-Define the desired schema and pass an ordered migration list to `openNodeStorage`.
-For example, after adding a nullable `archivedAt` timestamp to the `tasks` table:
+Define the desired schema and pass an ordered migration list. Both engines
+accept the same list. For example, after adding a nullable `archivedAt`
+timestamp to the `tasks` table:
 
 ```ts
 import { timestamp } from "@438d/hydb";
-import { ddl, defineMigration, openNodeStorage } from "@438d/hydb/node";
+import { ddl, defineMigration, openStorage } from "@438d/hydb/node";
 
 const migrations = [
   defineMigration({
@@ -51,59 +59,64 @@ const migrations = [
     steps: [ddl.addColumn("tasks", "archivedAt", timestamp())],
   }),
 ];
-const storage = await openNodeStorage({
+const storage = await openStorage({
   directory: "./data/project-app",
   schema: latestSchema,
   migrations,
 });
 ```
 
-Here `latestSchema` includes the new column; do not pass the old schema.
-Migration progress is committed so reopening can resume after interruption.
-The public API also exports `data`, `describeSchema`, `diffSchemaDescriptions`,
-and `checkMigrationChain` for data steps and tooling. Inspect their installed
-declarations before building a migration generator. The repository's migration
-CLI is development tooling and is not an installed npm executable.
+Here `latestSchema` includes the new column; do not pass the old schema. Append
+migrations; never rewrite published ones. Each step is one commit per branch
+and carries a progress marker, so reopening resumes after an interruption. A
+stored schema outside the declared chain is rejected without writing. Data
+steps (`data(async (db) => ...)`) may run before a later step adds an index;
+that step builds the index from existing rows.
 
-General schema migrations are not supported by `openKeyValueStorage`; importing
-a file database does not add that capability.
+The public API also exports `describeSchema`, `diffSchemaDescriptions`, and
+`checkMigrationChain` for tooling. Inspect their installed declarations before
+building a migration generator. The repository's migration CLI is development
+tooling and is not an installed npm executable.
 
-## Offline file-to-LMDB import
+## Moving file databases to LMDB
 
-Stop all writers before importing. The importer verifies source identity and
-content, but does not acquire a cross-process writer lock. Use a new destination:
+`openStorage` handles the common case. When `<directory>/lmdb` is missing and
+`<directory>/hydb.data` exists, it calls `migrateFileStorage` first:
 
-```ts
-import { importFileStorage } from "@438d/hydb/node";
-import { appSchema } from "./model.js";
+1. Clone `hydb.data` into a staging directory (the source is never opened
+   writable), apply `migrations` to the clone with the file engine, and
+   compact it to the retention window. History outside the window is not
+   imported.
+2. Import the clone into LMDB, verifying pages, commits, branches, history and
+   data-derived queries.
+3. Reopen with `migrations` and `retention`, confirm the source is
+   byte-identical, then rename the result to `<directory>/lmdb`.
 
-const report = await importFileStorage({
-  sourceFile: "./data/project-app/hydb.data",
-  destinationDirectory: "./data/project-app-lmdb",
-  schema: appSchema,
-});
-console.log(report);
-```
+A failure removes the staging directory and leaves no destination, so the next
+open retries from the start. `hydb.data` is kept for rollback: delete `lmdb/`
+to return to it with the old engine, which loses LMDB-only writes. Remove
+`hydb.data` once the cutover is confirmed. Stop every writer of the file
+database first; the migration fails if the source changes meanwhile.
 
-The source is read-only. The import preserves published history, branch metadata,
-and retained commits; it verifies copied records and query results before
-publishing destination metadata. Active branch heads must match the supplied
-schema. An interrupted import is incomplete and not resumable; retry with a new
-destination. Existing destinations are never overwritten.
+`migrateFileStorage({ sourceDirectory, destinationDirectory, schema,
+migrations, retention })` runs the same steps offline. `importFileStorage`
+is the lower-level import: it requires every branch head to match `schema`
+already and does not apply migrations or retention. The import buffers commit
+locations, visited page IDs, and working payloads; it is not constant-memory
+for arbitrary databases.
 
-Importing changes only the database. Changing the application's storage adapter
-and handling sibling media/preferences are separate cutover work. Preserve the
-source for rollback. The importer buffers commit locations, visited page IDs,
-and working payloads; it is not constant-memory for arbitrary databases.
+Migrating changes only the database. Sibling media or preference files are
+separate cutover work.
 
 ## Retention and garbage collection
 
-Persistent engines retain history forever by default. A window is opt-in:
+`openStorage` keeps a 500-commit window per branch by default. The lower-level
+engines retain history forever unless a window is given:
 
 ```ts
 const storage = await openKeyValueStorage({
   schema: appSchema,
-  directory: "./data/project-app-lmdb",
+  directory: "./data/project-app/lmdb",
   retention: { mode: "window", keepAtLeast: 100 },
   gcBatchSize: 128,
 });
@@ -116,8 +129,8 @@ commits. Close snapshots and consumed iterators promptly. An expired cursor
 raises `HistoryUnavailableError`; consumers need a fresh snapshot rather than
 assuming all history is still available.
 
-GC is explicit, with no background timer. KV reader pins are local to the
-storage instance: use one active instance per database during collection.
+Collection is explicit unless `gcIntervalMs` is set. KV reader pins are local to
+the storage instance: use one active instance per database during collection.
 Metadata comparisons reject stale writers but do not synchronize instances or
 provide distributed subscriptions.
 

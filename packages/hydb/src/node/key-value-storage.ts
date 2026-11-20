@@ -11,7 +11,7 @@ import {
   type StorageDatabase,
   type StorageSnapshot,
 } from "../storage.js";
-import { ImmutableBPlusTree } from "./bplus-tree.js";
+import { ImmutableBPlusTree, type TreeRoot } from "./bplus-tree.js";
 import { decodeValue, encodeValue } from "./codec.js";
 import { KeyValuePages } from "./key-value-pages.js";
 import {
@@ -19,6 +19,16 @@ import {
   type KeyValueStore,
 } from "./key-value-store.js";
 import { openLmdbKeyValueStore } from "./lmdb-key-value-store.js";
+import { buildMigrationPlan, type Migration } from "./migration.js";
+import {
+  applySchemaOperation,
+  migrationDatabase,
+  migrationFingerprints,
+  pendingMigrationMutations,
+  resumeMigrationStep,
+  type MigrationPendingRow,
+  type MigrationStepTask,
+} from "./migration-runner.js";
 import { NodeSnapshot } from "./tree-snapshot.js";
 import {
   applyTreeMutations,
@@ -28,6 +38,8 @@ import {
   sameRetention,
   schemaMetadata,
   validateRetention,
+  type DatabaseManifest,
+  type StoredChange,
   type StoredCommit,
   type TableMetadata,
 } from "./tree-storage-model.js";
@@ -56,6 +68,20 @@ export type KeyValueStorageOptions = Readonly<{
   memory?: MemoryManager;
   /** Maximum records/pages per GC slice (default 128). */
   gcBatchSize?: number;
+  /** Ordered migration list, oldest first, declared with defineMigration.
+   * Opens any schema in the chain and applies only the remaining steps, one
+   * commit per step and branch. Interrupted runs resume at the next step. */
+  migrations?: readonly Migration[];
+  /** Run `collectGarbage()` on this interval (milliseconds). The timer does
+   * not keep the process alive and stops on close. Off by default. */
+  gcIntervalMs?: number;
+  /** Observes timed collections. Errors from timed runs are reported here and
+   * otherwise ignored; the next interval retries. */
+  onGarbageCollection?: (
+    result:
+      | Readonly<{ report: KeyValueGarbageCollectionReport; error?: never }>
+      | Readonly<{ error: unknown; report?: never }>,
+  ) => void;
 }> &
   (
     | Readonly<{ directory: string; store?: never }>
@@ -66,8 +92,10 @@ export type KeyValueStorageOptions = Readonly<{
  * Opt-in prototype: immutable HyDB trees backed by a replaceable KV store.
  * Directory opens use LMDB. An injected store is owned and closed by this engine.
  * One active writer per database; a metadata condition rejects stale publication
- * from another instance. File databases can be imported offline with
- * importFileStorage; schema migrations are not supported. GC reader protection is local to this instance.
+ * from another instance. Schema changes use the same ordered `migrations` as
+ * the file engine. File databases can be imported offline with
+ * importFileStorage or migrateFileStorage. GC reader protection is local to
+ * this instance.
  */
 export class KeyValueStorageDatabase implements StorageDatabase {
   private readonly branches = new Map<string, Branch>();
@@ -84,6 +112,8 @@ export class KeyValueStorageDatabase implements StorageDatabase {
   private closing?: Promise<void>;
   private closed = false;
   private failed = false;
+  private gcTimer?: ReturnType<typeof setInterval>;
+  private readonly schemaFingerprints: ReadonlySet<string>;
 
   private constructor(
     private readonly store: KeyValueStore,
@@ -91,7 +121,17 @@ export class KeyValueStorageDatabase implements StorageDatabase {
     private metadataBytes: Uint8Array,
     private readonly tables: ReadonlyMap<string, TableMetadata>,
     options: KeyValueStorageOptions,
+    fingerprint: string,
+    private readonly migrationSteps: readonly MigrationStepTask[],
+    private readonly migrationBase: string,
+    private readonly migrationFinal: string,
   ) {
+    this.schemaFingerprints = migrationFingerprints(
+      migrationSteps,
+      fingerprint,
+      migrationBase,
+      migrationFinal,
+    );
     this.gcBatchSize = options.gcBatchSize ?? 128;
     this.pages = new KeyValuePages(store, metadata.nextPageId);
     this.tree = new ImmutableBPlusTree(this.pages, options);
@@ -106,11 +146,20 @@ export class KeyValueStorageDatabase implements StorageDatabase {
       (options.gcBatchSize ?? 128) > 4096
     )
       throw new TypeError("gcBatchSize must be an integer between 1 and 4096");
+    if (
+      options.gcIntervalMs !== undefined &&
+      (!Number.isFinite(options.gcIntervalMs) || options.gcIntervalMs < 1000)
+    )
+      throw new TypeError("gcIntervalMs must be at least 1000");
     const requested =
       options.retention === undefined
         ? undefined
         : validateRetention(options.retention);
     const schema = schemaMetadata(options.schema);
+    const plan =
+      options.migrations === undefined
+        ? undefined
+        : buildMigrationPlan(options.schema, options.migrations);
     const store = options.store ?? openLmdbKeyValueStore(options.directory!);
     let database: KeyValueStorageDatabase | undefined;
     try {
@@ -170,10 +219,6 @@ export class KeyValueStorageDatabase implements StorageDatabase {
       ) {
         throw new Error("Invalid key-value storage metadata");
       }
-      if (metadata.schema !== schema.fingerprint)
-        throw new TypeError(
-          "Storage schema does not match the supplied schema (KV prototype requires an unchanged schema)",
-        );
       validateRetention(metadata.retention);
       database = new KeyValueStorageDatabase(
         store,
@@ -181,11 +226,23 @@ export class KeyValueStorageDatabase implements StorageDatabase {
         bytes,
         schema.tables,
         options,
+        schema.fingerprint,
+        plan?.steps ?? [],
+        plan?.base ?? schema.fingerprint,
+        plan?.final ?? schema.fingerprint,
       );
+      if (!database.schemaFingerprints.has(metadata.schema))
+        throw new TypeError(
+          "Storage schema does not match the supplied schema; declare the change in migrations",
+        );
       for await (const entry of store.scan("branch/")) {
         const name = decodeURIComponent(entry.key.slice("branch/".length));
         const branch = decodeValue(entry.value) as Branch;
-        await database.readCommit(branch.head);
+        const head = await database.readCommit(branch.head);
+        if (!database.schemaFingerprints.has(head.manifest.schema))
+          throw new TypeError(
+            "Storage schema does not match the supplied schema; declare the change in migrations",
+          );
         database.branches.set(name, branch);
       }
       for await (const entry of store.scan("retain/")) {
@@ -199,6 +256,13 @@ export class KeyValueStorageDatabase implements StorageDatabase {
       ) {
         await database.publish([], requested);
       }
+      await database.migrate();
+      if (metadata.schema !== schema.fingerprint)
+        await database.publish([], undefined, schema.fingerprint);
+      const main = await database.readCommit(database.branch("main").head);
+      if (main.manifest.schema !== schema.fingerprint)
+        throw new TypeError("Storage schema does not match the supplied schema");
+      database.startGarbageCollection(options);
       return database;
     } catch (error) {
       database?.tree.dispose();
@@ -232,6 +296,8 @@ export class KeyValueStorageDatabase implements StorageDatabase {
     };
     try {
       const commit = await this.readCommit(id);
+      if (!this.schemaFingerprints.has(commit.manifest.schema))
+        throw new TypeError("Storage schema does not match the supplied schema");
       return new NodeSnapshot(
         id,
         branch?.sequence ?? commit.sequence,
@@ -259,73 +325,189 @@ export class KeyValueStorageDatabase implements StorageDatabase {
   }
 
   commit(request: CommitRequest): Promise<CommitBatch> {
-    return this.enqueue(async () => {
-      const name = request.branch ?? "main";
-      const current = this.branch(name);
-      if (
-        request.expectedHead !== undefined &&
-        request.expectedHead !== current.head
-      )
-        throw new StorageConflictError(request.expectedHead, current.head);
-      if (
-        request.expectedHead === undefined &&
-        request.expectedVersion !== current.sequence
-      )
-        throw new StorageConflictError(
-          request.expectedVersion ?? -1,
-          current.sequence,
-        );
-      const parent = await this.readCommit(current.head);
-      const manifest = cloneManifest(parent.manifest);
-      try {
-        const changes = await applyTreeMutations(
-          this.tree,
-          this.tables,
-          manifest,
-          request.mutations,
-          () =>
-            this.pages.retainRoots(
-              Object.values(manifest.tables).flatMap((table) => [
-                table.primary,
-                ...Object.values(table.indexes),
-              ]),
-            ),
-        );
-        const stored: StoredCommit = {
-          id: newCommitId(),
-          committedAtMs: Date.now(),
-          parent: current.head,
-          branch: name,
-          sequence: current.sequence + 1,
-          manifest,
-          changes,
-        };
-        const branch = {
-          ...current,
-          head: stored.id!,
-          sequence: stored.sequence,
-        };
-        await this.publish([
-          ...this.pages.operations(),
-          put(commitKey(stored.id!), stored),
-          put(historyKey(name, stored.sequence), stored.id!),
-          put(branchKey(name), branch),
-        ]);
-        this.branches.set(name, branch);
-        const batch = this.toBatch(stored);
-        for (const subscriber of this.subscribers) {
-          if (subscriber.branch !== name || stored.sequence <= subscriber.after)
-            continue;
-          subscriber.queue.push(batch);
-          subscriber.after = stored.sequence;
-          subscriber.wake?.();
-          subscriber.wake = undefined;
-        }
-        return batch;
-      } finally {
-        this.pages.discard();
+    return this.enqueue(() => this.commitNow(request));
+  }
+
+  private async commitNow(
+    request: CommitRequest,
+    migrationStep?: number,
+  ): Promise<CommitBatch> {
+    const name = request.branch ?? "main";
+    const current = this.branch(name);
+    if (
+      request.expectedHead !== undefined &&
+      request.expectedHead !== current.head
+    )
+      throw new StorageConflictError(request.expectedHead, current.head);
+    if (
+      request.expectedHead === undefined &&
+      request.expectedVersion !== current.sequence
+    )
+      throw new StorageConflictError(
+        request.expectedVersion ?? -1,
+        current.sequence,
+      );
+    const parent = await this.readCommit(current.head);
+    const manifest = cloneManifest(parent.manifest);
+    if (migrationStep !== undefined)
+      manifest.migration = { step: migrationStep };
+    try {
+      const changes = await applyTreeMutations(
+        this.tree,
+        this.tables,
+        manifest,
+        request.mutations,
+        () =>
+          this.pages.retainRoots(
+            Object.values(manifest.tables).flatMap((table) => [
+              table.primary,
+              ...Object.values(table.indexes),
+            ]),
+          ),
+      );
+      const stored: StoredCommit = {
+        id: newCommitId(),
+        committedAtMs: Date.now(),
+        parent: current.head,
+        branch: name,
+        sequence: current.sequence + 1,
+        manifest,
+        changes,
+      };
+      const branch = {
+        ...current,
+        head: stored.id!,
+        sequence: stored.sequence,
+      };
+      await this.publish([
+        ...this.pages.operations(),
+        put(commitKey(stored.id!), stored),
+        put(historyKey(name, stored.sequence), stored.id!),
+        put(branchKey(name), branch),
+      ]);
+      this.branches.set(name, branch);
+      const batch = this.toBatch(stored);
+      for (const subscriber of this.subscribers) {
+        if (subscriber.branch !== name || stored.sequence <= subscriber.after)
+          continue;
+        subscriber.queue.push(batch);
+        subscriber.after = stored.sequence;
+        subscriber.wake?.();
+        subscriber.wake = undefined;
       }
-    });
+      return batch;
+    } finally {
+      this.pages.discard();
+    }
+  }
+
+  /**
+   * Applies every remaining migration step as its own commit per branch, before
+   * the database is handed out. Each commit is published atomically with the
+   * metadata, and its manifest carries a progress marker, so a crash resumes
+   * at the first step that never published.
+   */
+  private async migrate(): Promise<void> {
+    if (this.migrationSteps.length === 0) return;
+    for (const name of [...this.branches.keys()]) {
+      const head = await this.readCommit(this.branch(name).head);
+      for (
+        let index = resumeMigrationStep(
+          head.manifest,
+          this.migrationSteps,
+          this.migrationBase,
+          this.migrationFinal,
+        );
+        index < this.migrationSteps.length;
+        index += 1
+      ) {
+        const step = this.migrationSteps[index]!;
+        if (step.kind === "legacy")
+          throw new TypeError("Legacy migration steps need the file engine");
+        const state = this.branch(name);
+        const parent = await this.readCommit(state.head);
+        if (step.kind === "data") {
+          if (parent.manifest.schema !== step.fingerprint)
+            throw new TypeError(
+              `Migration data step ${index + 1} expects schema ${step.fingerprint}; storage is at ${parent.manifest.schema}`,
+            );
+          const pending = new Map<string, MigrationPendingRow>();
+          await step.run(
+            migrationDatabase(this.tree, this.tables, parent.manifest, pending),
+          );
+          // An empty data step still commits so the progress marker advances.
+          await this.commitNow(
+            {
+              branch: name,
+              expectedHead: state.head,
+              mutations: pendingMigrationMutations(this.tables, pending),
+            },
+            index + 1,
+          );
+          continue;
+        }
+        if (parent.manifest.schema !== step.from)
+          throw new TypeError(
+            `Migration step ${index + 1} expects schema ${step.from}; storage is at ${parent.manifest.schema}`,
+          );
+        const manifest = cloneManifest(parent.manifest);
+        const changes: StoredChange[] = [];
+        try {
+          await applySchemaOperation(
+            this.tree,
+            this.tables,
+            manifest,
+            changes,
+            step.op,
+            (building) =>
+              this.pages.retainRoots([...manifestRoots(manifest), building]),
+          );
+          manifest.schema = step.to;
+          manifest.migration = { step: index + 1 };
+          const stored: StoredCommit = {
+            id: newCommitId(),
+            committedAtMs: Date.now(),
+            parent: state.head,
+            branch: name,
+            sequence: state.sequence + 1,
+            manifest,
+            changes,
+          };
+          const branch = {
+            ...state,
+            head: stored.id!,
+            sequence: stored.sequence,
+          };
+          this.pages.retainRoots(manifestRoots(manifest));
+          await this.publish(
+            [
+              ...this.pages.operations(),
+              put(commitKey(stored.id!), stored),
+              put(historyKey(name, stored.sequence), stored.id!),
+              put(branchKey(name), branch),
+            ],
+            undefined,
+            name === "main" ? step.to : undefined,
+          );
+          this.branches.set(name, branch);
+        } finally {
+          this.pages.discard();
+        }
+      }
+    }
+  }
+
+  private startGarbageCollection(options: KeyValueStorageOptions): void {
+    if (options.gcIntervalMs === undefined) return;
+    this.gcTimer = setInterval(() => {
+      if (this.closed || this.closing || this.failed || this.collection)
+        return;
+      this.collectGarbage().then(
+        (report) => options.onGarbageCollection?.({ report }),
+        (error) => options.onGarbageCollection?.({ error }),
+      );
+    }, options.gcIntervalMs);
+    this.gcTimer.unref?.();
   }
 
   async *changes(options: ChangeStreamOptions): AsyncIterable<CommitBatch> {
@@ -428,6 +610,7 @@ export class KeyValueStorageDatabase implements StorageDatabase {
 
   close(): Promise<void> {
     return (this.closing ??= (async () => {
+      clearInterval(this.gcTimer);
       await this.collection?.catch(() => undefined);
       await this.queue;
       this.closed = true;
@@ -440,9 +623,11 @@ export class KeyValueStorageDatabase implements StorageDatabase {
   private async publish(
     operations: readonly KeyValueOperation[],
     retention = this.metadata.retention,
+    schema = this.metadata.schema,
   ): Promise<void> {
     const next: Metadata = {
       ...this.metadata,
+      schema,
       nextPageId: this.pages.nextId,
       revision: this.metadata.revision + 1,
       retention,
@@ -467,8 +652,9 @@ export class KeyValueStorageDatabase implements StorageDatabase {
     const value = await this.store.get(commitKey(id));
     if (value === undefined) throw new HistoryUnavailableError(id);
     const commit = decodeValue(value) as StoredCommit;
-    if (commit.id !== id || commit.manifest.schema !== this.metadata.schema)
-      throw new Error("Invalid commit or schema in key-value storage");
+    // History may predate migrations; snapshots and open validate schemas.
+    if (commit.id !== id)
+      throw new Error("Invalid commit in key-value storage");
     return commit;
   }
 
@@ -525,6 +711,13 @@ export class KeyValueStorageDatabase implements StorageDatabase {
     if (this.closed || this.closing || this.failed)
       throw new Error("Key-value storage is closed or requires reopening");
   }
+}
+
+function manifestRoots(manifest: DatabaseManifest): TreeRoot[] {
+  return Object.values(manifest.tables).flatMap((table) => [
+    table.primary,
+    ...Object.values(table.indexes),
+  ]);
 }
 
 export const openKeyValueStorage = (

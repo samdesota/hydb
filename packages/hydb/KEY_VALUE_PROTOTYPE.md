@@ -86,7 +86,9 @@ size measurement. Concurrent inserts can affect the observed totals.
 ## Prototype boundaries
 
 - [Offline file import](FILE_IMPORT.md) preserves published data and verifies
-  queries. Schema migrations remain unsupported; reopening requires the same schema.
+  queries. `migrateFileStorage` (used by `openStorage`) also applies migrations.
+- Ordered `migrations` run at open, one published commit per step and branch.
+  Each step stages its rewritten pages in memory until it publishes.
 - LMDB can reuse deleted pages once readers release them; this does not imply
   immediate filesystem shrinkage. Disk shrinkage is a separate concern.
 - A write stages its reachable new pages in memory and publishes one transaction.
